@@ -11,6 +11,5 @@
 - All secrets via env vars
 
 ## Current Task
-Epic 1: Project Setup - Task T1.1
 
 [Update this each session with current Epic/Task]
