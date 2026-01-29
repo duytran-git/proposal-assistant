@@ -11,6 +11,7 @@ from proposal_assistant.docs.client import DocsClient
 from proposal_assistant.docs.deal_analysis import populate_deal_analysis
 from proposal_assistant.drive.client import DriveClient
 from proposal_assistant.drive.folders import get_or_create_client_folder
+from proposal_assistant.drive.permissions import share_with_channel_members
 from proposal_assistant.llm.client import LLMClient, LLMError
 from proposal_assistant.slack.messages import (
     format_analyzing,
@@ -176,7 +177,14 @@ def handle_analyse_command(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 8. Transition to WAITING_FOR_APPROVAL
+    # 8. Share doc with channel members
+    try:
+        shared_emails = share_with_channel_members(drive, doc_id, channel, client)
+        logger.info("Shared Deal Analysis doc with %d users", len(shared_emails))
+    except Exception as e:
+        logger.warning("Failed to share Deal Analysis doc: %s", e)
+
+    # 9. Transition to WAITING_FOR_APPROVAL
     state_machine.transition(
         thread_ts=thread_ts,
         channel_id=channel,
@@ -191,7 +199,7 @@ def handle_analyse_command(
         missing_info_items=missing_info,
     )
 
-    # 9. Send message with link + approval buttons
+    # 10. Send message with link + approval buttons
     completion_msg = format_deal_analysis_complete(doc_link, missing_info)
     approval_buttons = format_approval_buttons()
 
@@ -305,7 +313,15 @@ def handle_approval(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 5. Transition to DONE
+    # 5. Share deck with channel members
+    try:
+        drive = DriveClient(config)
+        shared_emails = share_with_channel_members(drive, deck_id, channel, client)
+        logger.info("Shared proposal deck with %d users", len(shared_emails))
+    except Exception as e:
+        logger.warning("Failed to share proposal deck: %s", e)
+
+    # 6. Transition to DONE
     state_machine.transition(
         thread_ts=thread_ts,
         channel_id=channel,
@@ -314,7 +330,7 @@ def handle_approval(
         slides_deck_link=deck_link,
     )
 
-    # 6. Send completion message with link
+    # 7. Send completion message with link
     completion_msg = format_deck_complete(deck_link)
     say(text=completion_msg["text"], blocks=completion_msg["blocks"], thread_ts=thread_ts)
 
