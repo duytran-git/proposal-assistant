@@ -36,10 +36,13 @@ class Event(Enum):
 class ThreadState:
     """Tracks the state and data for a single Slack thread conversation."""
 
-    # Identifiers
+    # Identifiers (required)
     thread_ts: str
     channel_id: str
     user_id: str
+
+    # Identifiers (optional)
+    channel_type: Optional[str] = None  # "im" for DMs, "channel" for public channels
     user_email: Optional[str] = None
 
     # Client info

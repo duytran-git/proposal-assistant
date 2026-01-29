@@ -15,7 +15,7 @@ from proposal_assistant.docs.deal_analysis import (
 )
 from proposal_assistant.drive.client import DriveClient
 from proposal_assistant.drive.folders import get_or_create_client_folder
-from proposal_assistant.drive.permissions import share_with_channel_members
+from proposal_assistant.drive.permissions import share_with_channel_members, share_with_user_by_id
 from proposal_assistant.llm.client import LLMClient, LLMError
 from proposal_assistant.slack.messages import (
     format_analyzing,
@@ -81,13 +81,15 @@ def handle_analyse_command(
     """
     thread_ts = message.get("thread_ts") or message.get("ts")
     channel = message.get("channel")
+    channel_type = message.get("channel_type")
     user_id = message.get("user")
     files = message.get("files", [])
 
     logger.info(
-        "Received Analyse command in channel=%s thread=%s",
+        "Received Analyse command in channel=%s thread=%s channel_type=%s",
         channel,
         thread_ts,
+        channel_type,
     )
 
     # 1. Check for file attachments
@@ -148,6 +150,7 @@ def handle_analyse_command(
     state_machine.transition(
         thread_ts=thread_ts,
         channel_id=channel,
+        channel_type=channel_type,
         user_id=user_id,
         event=Event.ANALYSE_REQUESTED,
         input_transcript_file_ids=file_ids,
@@ -255,10 +258,15 @@ def handle_analyse_command(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 9. Share doc with channel members
+    # 9. Share doc with user (DM) or channel members
     try:
-        shared_emails = share_with_channel_members(drive, doc_id, channel, client)
-        logger.info("Shared Deal Analysis doc with %d users", len(shared_emails))
+        if channel_type == "im":
+            email = share_with_user_by_id(drive, doc_id, user_id, client)
+            if email:
+                logger.info("Shared Deal Analysis doc with user %s", email)
+        else:
+            shared_emails = share_with_channel_members(drive, doc_id, channel, client)
+            logger.info("Shared Deal Analysis doc with %d users", len(shared_emails))
     except Exception as e:
         logger.warning("Failed to share Deal Analysis doc: %s", e)
 
@@ -401,11 +409,16 @@ def handle_approval(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 5. Share deck with channel members
+    # 5. Share deck with user (DM) or channel members
     try:
         drive = DriveClient(config)
-        shared_emails = share_with_channel_members(drive, deck_id, channel, client)
-        logger.info("Shared proposal deck with %d users", len(shared_emails))
+        if thread_state.channel_type == "im":
+            email = share_with_user_by_id(drive, deck_id, user_id, client)
+            if email:
+                logger.info("Shared proposal deck with user %s", email)
+        else:
+            shared_emails = share_with_channel_members(drive, deck_id, channel, client)
+            logger.info("Shared proposal deck with %d users", len(shared_emails))
     except Exception as e:
         logger.warning("Failed to share proposal deck: %s", e)
 
@@ -573,11 +586,16 @@ def handle_regenerate(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 5. Share doc with channel members
+    # 5. Share doc with user (DM) or channel members
     try:
         drive = DriveClient(config)
-        shared_emails = share_with_channel_members(drive, doc_id, channel, client)
-        logger.info("Shared Deal Analysis v%d doc with %d users", new_version, len(shared_emails))
+        if thread_state.channel_type == "im":
+            email = share_with_user_by_id(drive, doc_id, user_id, client)
+            if email:
+                logger.info("Shared Deal Analysis v%d doc with user %s", new_version, email)
+        else:
+            shared_emails = share_with_channel_members(drive, doc_id, channel, client)
+            logger.info("Shared Deal Analysis v%d doc with %d users", new_version, len(shared_emails))
     except Exception as e:
         logger.warning("Failed to share Deal Analysis doc: %s", e)
 
@@ -761,11 +779,16 @@ def handle_updated_deal_analysis(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 10. Share deck with channel members
+    # 10. Share deck with user (DM) or channel members
     try:
         drive = DriveClient(config)
-        shared_emails = share_with_channel_members(drive, deck_id, channel, client)
-        logger.info("Shared proposal deck with %d users", len(shared_emails))
+        if thread_state.channel_type == "im":
+            email = share_with_user_by_id(drive, deck_id, user_id, client)
+            if email:
+                logger.info("Shared proposal deck with user %s", email)
+        else:
+            shared_emails = share_with_channel_members(drive, deck_id, channel, client)
+            logger.info("Shared proposal deck with %d users", len(shared_emails))
     except Exception as e:
         logger.warning("Failed to share proposal deck: %s", e)
 
