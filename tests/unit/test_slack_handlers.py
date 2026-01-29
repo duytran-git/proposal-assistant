@@ -8,6 +8,7 @@ from proposal_assistant.slack.handlers import (
     handle_analyse_command,
     handle_approval,
     handle_rejection,
+    handle_updated_deal_analysis,
 )
 from proposal_assistant.slack.messages import ERROR_MESSAGES
 from proposal_assistant.state.models import State, ThreadState
@@ -1032,6 +1033,52 @@ class TestHandleApproval:
         calls = state_machine.transition.call_args_list
         assert any(call[1]["event"] == Event.FAILED for call in calls)
 
+    def test_approval_with_user_uploaded_content_parses_it(
+        self, mock_say, mock_client, approval_body, mock_config
+    ):
+        """Approval with user-uploaded content parses it before LLM call."""
+        # State with user-uploaded raw content
+        user_uploaded_state = ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            state=State.WAITING_FOR_APPROVAL,
+            client_name="acme",
+            proposals_folder_id="proposals_123",
+            deal_analysis_content={
+                "raw_content": "## Opportunity Snapshot\nAcme Corp details",
+                "source": "user_uploaded",
+            },
+        )
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
+            patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = user_uploaded_state
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.return_value = {
+                "content": {"slide_1_cover": {}},
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_slides = MagicMock()
+            mock_slides.duplicate_template.return_value = ("deck_123", "link")
+            SlidesClient.return_value = mock_slides
+
+            handle_approval(approval_body, mock_say, mock_client)
+
+        # Verify LLM was called with parsed content (not raw wrapper)
+        call_args = mock_llm.generate_proposal_deck_content.call_args[0][0]
+        assert "raw_content" not in call_args
+        assert "source" not in call_args
+        assert "opportunity_snapshot" in call_args
+
 
 class TestHandleRejection:
     """Tests for handle_rejection function."""
@@ -1288,3 +1335,238 @@ class TestHandleRegenerate:
         state_machine = StateMachine.return_value
         calls = state_machine.transition.call_args_list
         assert any(call[1]["event"] == Event.FAILED for call in calls)
+
+
+class TestHandleUpdatedDealAnalysis:
+    """Tests for handle_updated_deal_analysis function."""
+
+    @pytest.fixture
+    def file_upload_message(self):
+        """Create a Slack message payload with file upload."""
+        return {
+            "ts": "1706440000.000001",
+            "thread_ts": "1706430000.000000",
+            "channel": "C1234567890",
+            "user": "U1234567890",
+            "files": [
+                {
+                    "id": "F123",
+                    "name": "updated-analysis.md",
+                    "url_private_download": "https://slack.com/files/...",
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_thread_state_waiting(self):
+        """Mock thread state in WAITING_FOR_APPROVAL."""
+        return ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            state=State.WAITING_FOR_APPROVAL,
+            client_name="acme",
+            proposals_folder_id="proposals_123",
+            deal_analysis_content={"company": "Acme"},
+        )
+
+    def test_ignores_message_without_files(self, mock_say, mock_client):
+        """Handler returns early if no files in message."""
+        message = {
+            "ts": "1706440000.000001",
+            "thread_ts": "1706430000.000000",
+            "channel": "C1234567890",
+            "user": "U1234567890",
+        }
+
+        handle_updated_deal_analysis(message, mock_say, mock_client)
+
+        mock_say.assert_not_called()
+
+    def test_ignores_message_not_in_thread(self, mock_say, mock_client):
+        """Handler returns early if message is not in a thread."""
+        message = {
+            "ts": "1706440000.000001",
+            "channel": "C1234567890",
+            "user": "U1234567890",
+            "files": [{"id": "F123", "name": "test.md"}],
+        }
+
+        with patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine:
+            StateMachine.return_value.get_state.side_effect = Exception("No state")
+            handle_updated_deal_analysis(message, mock_say, mock_client)
+
+        mock_say.assert_not_called()
+
+    def test_ignores_non_waiting_for_approval_state(
+        self, mock_say, mock_client, file_upload_message
+    ):
+        """Handler ignores file upload if not in WAITING_FOR_APPROVAL state."""
+        idle_state = ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            state=State.IDLE,
+        )
+
+        with patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine:
+            StateMachine.return_value.get_state.return_value = idle_state
+            handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
+
+        mock_say.assert_not_called()
+
+    def test_ignores_non_docx_or_md_files(
+        self, mock_say, mock_client, mock_thread_state_waiting
+    ):
+        """Handler ignores files that are not .docx or .md."""
+        message = {
+            "ts": "1706440000.000001",
+            "thread_ts": "1706430000.000000",
+            "channel": "C1234567890",
+            "user": "U1234567890",
+            "files": [
+                {"id": "F123", "name": "image.png", "url_private_download": "https://..."},
+            ],
+        }
+
+        with patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine:
+            StateMachine.return_value.get_state.return_value = mock_thread_state_waiting
+            handle_updated_deal_analysis(message, mock_say, mock_client)
+
+        mock_say.assert_not_called()
+
+    def test_processes_md_file_in_waiting_state(
+        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+    ):
+        """Handler processes .md file when in WAITING_FOR_APPROVAL state."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
+            patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"# Updated Deal Analysis\n\nNew content."
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.return_value = {
+                "content": {"slide_1_cover": {}},
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_slides = MagicMock()
+            mock_slides.duplicate_template.return_value = ("deck_123", "link")
+            SlidesClient.return_value = mock_slides
+
+            handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
+
+        # Should send generating message and completion message
+        assert mock_say.call_count == 2
+        first_call = mock_say.call_args_list[0][1]
+        assert first_call["text"] == "Generating proposal deck..."
+
+    def test_triggers_updated_deal_analysis_provided_event(
+        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+    ):
+        """Handler triggers UPDATED_DEAL_ANALYSIS_PROVIDED event."""
+        from proposal_assistant.state.models import Event
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
+            patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"# Content"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.return_value = {"content": {}}
+            LLMClient.return_value = mock_llm
+
+            mock_slides = MagicMock()
+            mock_slides.duplicate_template.return_value = ("deck_123", "link")
+            SlidesClient.return_value = mock_slides
+
+            handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
+
+        state_machine = StateMachine.return_value
+        calls = state_machine.transition.call_args_list
+        first_call = calls[0]
+        assert first_call[1]["event"] == Event.UPDATED_DEAL_ANALYSIS_PROVIDED
+
+    def test_download_error_shows_error_message(
+        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+    ):
+        """Download failure shows INPUT_INVALID error."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_waiting
+            urlopen.side_effect = Exception("Network error")
+
+            handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
+
+        mock_say.assert_called_once()
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["text"] == ERROR_MESSAGES["INPUT_INVALID"]
+
+    def test_transitions_to_done_after_deck_creation(
+        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+    ):
+        """Handler transitions to DONE after successful deck creation."""
+        from proposal_assistant.state.models import Event
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
+            patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"# Content"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.return_value = {"content": {}}
+            LLMClient.return_value = mock_llm
+
+            mock_slides = MagicMock()
+            mock_slides.duplicate_template.return_value = ("deck_123", "link")
+            SlidesClient.return_value = mock_slides
+
+            handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
+
+        state_machine = StateMachine.return_value
+        calls = state_machine.transition.call_args_list
+        last_call = calls[-1]
+        assert last_call[1]["event"] == Event.DECK_CREATED

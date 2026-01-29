@@ -29,7 +29,7 @@ from proposal_assistant.slack.messages import (
 from proposal_assistant.slides.client import SlidesClient
 from proposal_assistant.slides.proposal_deck import populate_proposal_deck
 from proposal_assistant.state.machine import StateMachine
-from proposal_assistant.state.models import Event
+from proposal_assistant.state.models import Event, State
 from proposal_assistant.utils.parsing import extract_client_name
 from proposal_assistant.utils.validation import validate_transcript
 
@@ -283,10 +283,20 @@ def handle_approval(
 
     config = get_config()
 
-    # 3. Generate proposal deck content via LLM
+    # 3. Prepare deal analysis content
+    # If user uploaded a doc, parse it into structured format
+    deal_analysis = thread_state.deal_analysis_content
+    if deal_analysis.get("source") == "user_uploaded":
+        from proposal_assistant.utils.doc_parser import parse_deal_analysis
+
+        raw_content = deal_analysis.get("raw_content", "")
+        deal_analysis = parse_deal_analysis(raw_content)
+        logger.info("Using parsed user-uploaded deal analysis")
+
+    # 4. Generate proposal deck content via LLM
     try:
         llm = LLMClient(config)
-        result = llm.generate_proposal_deck_content(thread_state.deal_analysis_content)
+        result = llm.generate_proposal_deck_content(deal_analysis)
         deck_content = result["content"]
     except LLMError as e:
         logger.error("LLM error generating deck: %s (type=%s)", e, e.error_type)
@@ -537,4 +547,186 @@ def handle_regenerate(
         new_version,
         thread_state.client_name,
         doc_id,
+    )
+
+
+def handle_updated_deal_analysis(
+    message: dict[str, Any],
+    say: Any,
+    client: WebClient,
+) -> None:
+    """Handle file upload in WAITING_FOR_APPROVAL state.
+
+    Detects .docx or .md file uploads and triggers deck generation
+    using the uploaded content as the deal analysis.
+
+    Args:
+        message: Slack message event payload.
+        say: Slack say function for replying in thread.
+        client: Slack WebClient for API calls.
+    """
+    thread_ts = message.get("thread_ts") or message.get("ts")
+    channel = message.get("channel")
+    user_id = message.get("user")
+    files = message.get("files", [])
+
+    # Must have files and be in a thread
+    if not files or not thread_ts:
+        return
+
+    logger.info(
+        "Checking for updated deal analysis in channel=%s thread=%s",
+        channel,
+        thread_ts,
+    )
+
+    # 1. Get thread state to check current state
+    state_machine = StateMachine()
+    try:
+        thread_state = state_machine.get_state(thread_ts, channel, user_id)
+    except Exception:
+        # No existing state for this thread, ignore
+        return
+
+    # 2. Only proceed if in WAITING_FOR_APPROVAL state
+    if thread_state.state != State.WAITING_FOR_APPROVAL:
+        logger.debug(
+            "Thread not in WAITING_FOR_APPROVAL (state=%s), ignoring file upload",
+            thread_state.state,
+        )
+        return
+
+    # 3. Filter for .docx or .md files
+    valid_files = [
+        f for f in files
+        if f.get("name", "").lower().endswith((".docx", ".md"))
+    ]
+
+    if not valid_files:
+        logger.debug("No .docx or .md files found in upload")
+        return
+
+    # 4. Download the first valid file
+    file_info = valid_files[0]
+    file_name = file_info.get("name", "")
+    download_url = file_info.get("url_private_download")
+
+    if not download_url:
+        logger.error("No download URL for file %s", file_name)
+        return
+
+    config = get_config()
+
+    try:
+        req = urllib.request.Request(
+            download_url,
+            headers={"Authorization": f"Bearer {config.slack_bot_token}"},
+        )
+        with urllib.request.urlopen(req) as response:
+            raw_content = response.read()
+    except Exception as e:
+        logger.error("Failed to download file %s: %s", file_name, e)
+        error_msg = format_error("INPUT_INVALID")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # 5. Parse file into structured deal analysis format
+    from proposal_assistant.utils.doc_parser import parse_deal_analysis
+
+    try:
+        deal_analysis_content = parse_deal_analysis(raw_content, filename=file_name)
+    except Exception as e:
+        logger.error("Failed to parse file %s: %s", file_name, e)
+        error_msg = format_error("INPUT_INVALID")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # 6. Transition to GENERATING_DECK with UPDATED_DEAL_ANALYSIS_PROVIDED
+    state_machine.transition(
+        thread_ts=thread_ts,
+        channel_id=channel,
+        event=Event.UPDATED_DEAL_ANALYSIS_PROVIDED,
+        deal_analysis_content=deal_analysis_content,
+    )
+
+    # 7. Acknowledge with generating message
+    generating_msg = format_generating_deck()
+    say(text=generating_msg["text"], blocks=generating_msg["blocks"], thread_ts=thread_ts)
+
+    # 8. Generate proposal deck content via LLM
+    try:
+        llm = LLMClient(config)
+        result = llm.generate_proposal_deck_content(deal_analysis_content)
+        deck_content = result["content"]
+    except LLMError as e:
+        logger.error("LLM error generating deck: %s (type=%s)", e, e.error_type)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type=e.error_type,
+            error_message=str(e),
+        )
+        error_msg = format_error(e.error_type)
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+    except Exception as e:
+        logger.error("Unexpected LLM error: %s", e)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type="LLM_ERROR",
+            error_message=str(e),
+        )
+        error_msg = format_error("LLM_ERROR")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # 9. Create Google Slides presentation
+    try:
+        slides = SlidesClient(config)
+        deck_title = f"{thread_state.client_name} - Proposal"
+        deck_id, deck_link = slides.duplicate_template(
+            deck_title, thread_state.proposals_folder_id
+        )
+        populate_proposal_deck(slides, deck_id, deck_content)
+    except Exception as e:
+        logger.error("Failed to create proposal deck: %s", e)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type="SLIDES_ERROR",
+            error_message=str(e),
+        )
+        error_msg = format_error("SLIDES_ERROR")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # 10. Share deck with channel members
+    try:
+        drive = DriveClient(config)
+        shared_emails = share_with_channel_members(drive, deck_id, channel, client)
+        logger.info("Shared proposal deck with %d users", len(shared_emails))
+    except Exception as e:
+        logger.warning("Failed to share proposal deck: %s", e)
+
+    # 11. Transition to DONE
+    state_machine.transition(
+        thread_ts=thread_ts,
+        channel_id=channel,
+        event=Event.DECK_CREATED,
+        slides_deck_id=deck_id,
+        slides_deck_link=deck_link,
+    )
+
+    # 12. Send completion message with link
+    completion_msg = format_deck_complete(deck_link)
+    say(text=completion_msg["text"], blocks=completion_msg["blocks"], thread_ts=thread_ts)
+
+    logger.info(
+        "Proposal deck created from updated Deal Analysis for %s, deck_id=%s",
+        thread_state.client_name,
+        deck_id,
     )

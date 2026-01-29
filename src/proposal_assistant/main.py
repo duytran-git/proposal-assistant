@@ -6,7 +6,10 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from proposal_assistant.config import get_config
-from proposal_assistant.slack.handlers import handle_analyse_command
+from proposal_assistant.slack.handlers import (
+    handle_analyse_command,
+    handle_updated_deal_analysis,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -29,6 +32,13 @@ def create_app() -> App:
     @app.message("Analyse")
     def analyse_message(message, say, client):
         handle_analyse_command(message, say, client)
+
+    # Register message event listener for file uploads in existing threads
+    # This catches all messages and filters for file uploads in WAITING_FOR_APPROVAL
+    @app.event("message")
+    def handle_message_event(event, say, client):
+        if event.get("files"):
+            handle_updated_deal_analysis(event, say, client)
 
     return app
 
