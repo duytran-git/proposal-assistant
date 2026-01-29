@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 
 class State(Enum):
@@ -51,6 +51,7 @@ class ThreadState:
     # Document references
     deal_analysis_doc_id: Optional[str] = None
     deal_analysis_link: Optional[str] = None
+    deal_analysis_content: Optional[dict[str, Any]] = None
     deal_analysis_version: int = 1
     slides_deck_id: Optional[str] = None
     slides_deck_link: Optional[str] = None

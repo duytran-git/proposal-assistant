@@ -118,6 +118,76 @@ def format_approval_buttons() -> dict[str, Any]:
     }
 
 
+def format_generating_deck() -> dict[str, Any]:
+    """Format the 'generating proposal deck' status message.
+
+    Returns:
+        Slack Block Kit message dict with generating status.
+    """
+    return {
+        "text": "Generating proposal deck...",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":hourglass_flowing_sand: *Generating proposal deck...*",
+                },
+            }
+        ],
+    }
+
+
+def format_deck_complete(link: str) -> dict[str, Any]:
+    """Format the proposal deck completion message.
+
+    Args:
+        link: URL to the created Proposal Deck presentation.
+
+    Returns:
+        Slack Block Kit message dict with deck link.
+    """
+    return {
+        "text": "Proposal deck created",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":white_check_mark: *Proposal deck created*",
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"<{link}|View Proposal Deck>",
+                },
+            },
+        ],
+    }
+
+
+def format_rejection_confirmed() -> dict[str, Any]:
+    """Format the rejection confirmation message.
+
+    Returns:
+        Slack Block Kit message dict confirming rejection.
+    """
+    return {
+        "text": "Got it, no proposal deck will be created.",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":ok_hand: Got it, no proposal deck will be created.",
+                },
+            }
+        ],
+    }
+
+
 def format_error(error_type: str) -> dict[str, Any]:
     """Format a user-friendly error message.
 
