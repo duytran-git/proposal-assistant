@@ -9,6 +9,7 @@ from proposal_assistant.slack.messages import (
     format_approval_buttons,
     format_deal_analysis_complete,
     format_error,
+    format_fetch_failures,
 )
 
 
@@ -183,3 +184,32 @@ class TestErrorMessagesConstant:
         for error_type, message in ERROR_MESSAGES.items():
             assert isinstance(message, str), f"{error_type} message is not a string"
             assert len(message) > 0, f"{error_type} has empty message"
+
+
+class TestFormatFetchFailures:
+    """Tests for format_fetch_failures function."""
+
+    def test_returns_dict_with_text_and_blocks(self):
+        result = format_fetch_failures(["https://example.com"])
+        assert isinstance(result, dict)
+        assert "text" in result
+        assert "blocks" in result
+
+    def test_single_url_in_message(self):
+        result = format_fetch_failures(["https://example.com/page"])
+        assert result["text"] == "Could not fetch: https://example.com/page"
+        assert "https://example.com/page" in result["blocks"][0]["text"]["text"]
+
+    def test_multiple_urls_comma_separated(self):
+        urls = ["https://a.com", "https://b.com"]
+        result = format_fetch_failures(urls)
+        assert result["text"] == "Could not fetch: https://a.com, https://b.com"
+
+    def test_uses_warning_emoji(self):
+        result = format_fetch_failures(["https://example.com"])
+        assert ":warning:" in result["blocks"][0]["text"]["text"]
+
+    def test_uses_mrkdwn_format(self):
+        result = format_fetch_failures(["https://example.com"])
+        text_block = result["blocks"][0]["text"]
+        assert text_block["type"] == "mrkdwn"

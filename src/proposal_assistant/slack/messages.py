@@ -211,6 +211,30 @@ def format_rejection_confirmed() -> dict[str, Any]:
     }
 
 
+def format_fetch_failures(failed_urls: list[str]) -> dict[str, Any]:
+    """Format a warning message for URLs that could not be fetched.
+
+    Args:
+        failed_urls: List of URLs that failed to fetch.
+
+    Returns:
+        Slack Block Kit message dict with warning about failed URLs.
+    """
+    urls_text = ", ".join(failed_urls)
+    return {
+        "text": f"Could not fetch: {urls_text}",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f":warning: Could not fetch: {urls_text}",
+                },
+            }
+        ],
+    }
+
+
 def format_error(error_type: str) -> dict[str, Any]:
     """Format a user-friendly error message.
 

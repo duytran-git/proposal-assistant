@@ -1,6 +1,7 @@
 """Slack event handlers for Proposal Assistant."""
 
 import logging
+import re
 import urllib.request
 from typing import Any
 
@@ -22,6 +23,7 @@ from proposal_assistant.slack.messages import (
     format_deal_analysis_complete,
     format_deck_complete,
     format_error,
+    format_fetch_failures,
     format_generating_deck,
     format_regenerating,
     format_rejection_confirmed,
@@ -32,8 +34,37 @@ from proposal_assistant.state.machine import StateMachine
 from proposal_assistant.state.models import Event, State
 from proposal_assistant.utils.parsing import extract_client_name
 from proposal_assistant.utils.validation import validate_transcript
+from proposal_assistant.web.fetcher import WebFetcher
 
 logger = logging.getLogger(__name__)
+
+# URL regex pattern for extracting URLs from message text
+URL_PATTERN = re.compile(
+    r"https?://[^\s<>\[\]()\"'`]+",
+    re.IGNORECASE,
+)
+
+
+def extract_urls(text: str) -> list[str]:
+    """Extract URLs from message text.
+
+    Args:
+        text: Message text that may contain URLs.
+
+    Returns:
+        List of unique URLs found in the text.
+    """
+    if not text:
+        return []
+    urls = URL_PATTERN.findall(text)
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_urls = []
+    for url in urls:
+        if url not in seen:
+            seen.add(url)
+            unique_urls.append(url)
+    return unique_urls
 
 
 def handle_analyse_command(
@@ -146,10 +177,36 @@ def handle_analyse_command(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 6. Build context and call LLM
+    # 6. Extract URLs from message text and fetch web content
+    message_text = message.get("text", "")
+    urls = extract_urls(message_text)
+    web_content: list[str] | None = None
+
+    if urls:
+        logger.info("Found %d URLs in message, fetching web content", len(urls))
+        fetcher = WebFetcher()
+        results = fetcher.fetch_multiple(urls)
+        # Separate successful and failed fetches
+        web_content = [content for _, content in results if content is not None]
+        failed_urls = [url for url, content in results if content is None]
+
+        if failed_urls:
+            logger.warning("Failed to fetch %d URLs: %s", len(failed_urls), failed_urls)
+            failure_msg = format_fetch_failures(failed_urls)
+            say(text=failure_msg["text"], blocks=failure_msg["blocks"], thread_ts=thread_ts)
+
+        if web_content:
+            logger.info("Fetched %d/%d URLs successfully", len(web_content), len(urls))
+        else:
+            web_content = None
+
+    # 7. Build context and call LLM
     try:
         llm = LLMClient(config)
-        result = llm.generate_deal_analysis(transcript=transcript_parts)
+        result = llm.generate_deal_analysis(
+            transcript=transcript_parts,
+            web_content=web_content,
+        )
         deal_analysis_content = result["content"]
         missing_info = result.get("missing_info", [])
     except LLMError as e:
@@ -177,7 +234,7 @@ def handle_analyse_command(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 7. Create Google Doc
+    # 8. Create Google Doc
     try:
         docs = DocsClient(config)
         doc_title = f"{client_name} - Deal Analysis"
@@ -198,14 +255,14 @@ def handle_analyse_command(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 8. Share doc with channel members
+    # 9. Share doc with channel members
     try:
         shared_emails = share_with_channel_members(drive, doc_id, channel, client)
         logger.info("Shared Deal Analysis doc with %d users", len(shared_emails))
     except Exception as e:
         logger.warning("Failed to share Deal Analysis doc: %s", e)
 
-    # 9. Transition to WAITING_FOR_APPROVAL
+    # 10. Transition to WAITING_FOR_APPROVAL
     state_machine.transition(
         thread_ts=thread_ts,
         channel_id=channel,
@@ -220,7 +277,7 @@ def handle_analyse_command(
         missing_info_items=missing_info,
     )
 
-    # 10. Send message with link + approval buttons
+    # 11. Send message with link + approval buttons
     completion_msg = format_deal_analysis_complete(doc_link, missing_info)
     approval_buttons = format_approval_buttons()
 
