@@ -11,6 +11,10 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 from proposal_assistant.config import Config
 from proposal_assistant.llm.context_builder import ContextBuilder
 from proposal_assistant.llm.prompts.deal_analysis import SYSTEM_PROMPT, format_user_prompt
+from proposal_assistant.llm.prompts.proposal_deck import (
+    SYSTEM_PROMPT as PROPOSAL_DECK_SYSTEM_PROMPT,
+    format_user_prompt as format_proposal_deck_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +138,81 @@ class LLMClient:
         return {
             "content": content,
             "missing_info": missing_info,
+            "raw_response": raw,
+        }
+
+    def generate_proposal_deck_content(
+        self,
+        deal_analysis: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Generate Proposal Deck slide content from Deal Analysis.
+
+        Transforms a Deal Analysis document into structured content
+        for a 12-slide Proposal Deck.
+
+        Args:
+            deal_analysis: Parsed deal_analysis dict from generate_deal_analysis().
+
+        Returns:
+            Dict with keys:
+                - content: Slide content dict with keys slide_1_cover through
+                    slide_12_next_steps. Each slide contains placeholder field
+                    values matching the expected layout.
+                - raw_response: Original LLM response string.
+
+        Raises:
+            LLMError: If LLM call fails or response is not valid JSON.
+        """
+        # Convert deal analysis dict to JSON string for the prompt
+        deal_analysis_text = json.dumps(deal_analysis, indent=2)
+
+        messages = [
+            {"role": "system", "content": PROPOSAL_DECK_SYSTEM_PROMPT},
+            {"role": "user", "content": format_proposal_deck_prompt(deal_analysis_text)},
+        ]
+
+        raw = self.generate(messages)
+        parsed = self._extract_json(raw)
+
+        # Validate expected slide keys are present
+        expected_keys = [
+            "slide_1_cover",
+            "slide_2_executive_summary",
+            "slide_3_client_context",
+            "slide_4_challenges",
+            "slide_5_proposed_solution",
+            "slide_6_solution_scope",
+            "slide_7_implementation",
+            "slide_8_value_case",
+            "slide_9_commercials",
+            "slide_10_risk_mitigation",
+            "slide_11_proof_of_success",
+            "slide_12_next_steps",
+        ]
+
+        missing_slides = [key for key in expected_keys if key not in parsed]
+        if missing_slides:
+            logger.warning(
+                "LLM response missing slide keys: %s",
+                ", ".join(missing_slides),
+            )
+
+        # Validate each slide value is a dict
+        for key in expected_keys:
+            if key in parsed and not isinstance(parsed[key], dict):
+                raise LLMError(
+                    f"{key} field is not an object",
+                    error_type="LLM_INVALID",
+                )
+
+        logger.info(
+            "Proposal deck content generated (%d/%d slides)",
+            len(expected_keys) - len(missing_slides),
+            len(expected_keys),
+        )
+
+        return {
+            "content": parsed,
             "raw_response": raw,
         }
 
