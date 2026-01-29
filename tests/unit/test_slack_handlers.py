@@ -1076,3 +1076,215 @@ class TestHandleRejection:
 
         call_kwargs = mock_say.call_args[1]
         assert call_kwargs["thread_ts"] == "1706430000.000000"
+
+
+class TestHandleRegenerate:
+    """Tests for handle_regenerate function."""
+
+    @pytest.fixture
+    def regenerate_body(self):
+        """Sample Slack action body for regenerate button."""
+        return {
+            "channel": {"id": "C1234567890"},
+            "message": {"thread_ts": "1706430000.000000"},
+            "user": {"id": "U1234567890"},
+        }
+
+    @pytest.fixture
+    def mock_thread_state_for_regen(self):
+        """Mock thread state with stored transcripts for regeneration."""
+        return ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            client_name="acme",
+            analyse_folder_id="analyse_123",
+            proposals_folder_id="proposals_123",
+            input_transcript_content=["# Meeting transcript content"],
+            deal_analysis_content={"company": "Acme"},
+            deal_analysis_version=1,
+        )
+
+    def test_regenerate_sends_regenerating_message(
+        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+    ):
+        """Regenerate sends regenerating status message with version."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme v2"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.return_value = ("doc_v2", "link_v2")
+            DocsClient.return_value = mock_docs
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+            handle_regenerate(regenerate_body, mock_say, mock_client)
+
+        first_call = mock_say.call_args_list[0][1]
+        assert "Regenerating" in first_call["text"]
+        assert "v2" in first_call["text"]
+
+    def test_regenerate_increments_version(
+        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+    ):
+        """Regenerate increments deal_analysis_version in state."""
+        from proposal_assistant.state.models import Event
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.return_value = ("doc_v2", "link_v2")
+            DocsClient.return_value = mock_docs
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+            handle_regenerate(regenerate_body, mock_say, mock_client)
+
+        state_machine = StateMachine.return_value
+        first_call = state_machine.transition.call_args_list[0]
+        assert first_call[1]["event"] == Event.REGENERATE_REQUESTED
+        assert first_call[1]["deal_analysis_version"] == 2
+
+    def test_regenerate_calls_llm_with_stored_transcripts(
+        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+    ):
+        """Regenerate uses stored input_transcript_content for LLM call."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.return_value = ("doc_v2", "link_v2")
+            DocsClient.return_value = mock_docs
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+            handle_regenerate(regenerate_body, mock_say, mock_client)
+
+        mock_llm.generate_deal_analysis.assert_called_once()
+        call_kwargs = mock_llm.generate_deal_analysis.call_args[1]
+        assert call_kwargs["transcript"] == ["# Meeting transcript content"]
+
+    def test_regenerate_creates_versioned_doc(
+        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+    ):
+        """Regenerate creates doc with version number in title."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.return_value = ("doc_v2", "link_v2")
+            DocsClient.return_value = mock_docs
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+            handle_regenerate(regenerate_body, mock_say, mock_client)
+
+        mock_docs.create_document.assert_called_once()
+        call_args = mock_docs.create_document.call_args[0]
+        assert call_args[0] == "acme - Deal Analysis v2"
+        assert call_args[1] == "analyse_123"
+
+    def test_regenerate_missing_state_shows_error(
+        self, mock_say, mock_client, regenerate_body
+    ):
+        """Missing transcript content shows STATE_MISSING error."""
+        missing_state = ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+        )
+
+        with (
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+        ):
+            StateMachine.return_value.get_state.return_value = missing_state
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+            handle_regenerate(regenerate_body, mock_say, mock_client)
+
+        mock_say.assert_called_once()
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["text"] == ERROR_MESSAGES["STATE_MISSING"]
+
+    def test_regenerate_llm_error_shows_error(
+        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+    ):
+        """LLM error during regenerate shows error message."""
+        from proposal_assistant.llm.client import LLMError
+        from proposal_assistant.state.models import Event
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.side_effect = LLMError("LLM failed", "LLM_ERROR")
+            LLMClient.return_value = mock_llm
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+            handle_regenerate(regenerate_body, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+        state_machine = StateMachine.return_value
+        calls = state_machine.transition.call_args_list
+        assert any(call[1]["event"] == Event.FAILED for call in calls)

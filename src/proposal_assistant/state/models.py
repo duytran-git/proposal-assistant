@@ -62,6 +62,7 @@ class ThreadState:
 
     # Input tracking
     input_transcript_file_ids: list[str] = field(default_factory=list)
+    input_transcript_content: list[str] = field(default_factory=list)
     input_reference_file_ids: list[str] = field(default_factory=list)
     input_urls: list[str] = field(default_factory=list)
 

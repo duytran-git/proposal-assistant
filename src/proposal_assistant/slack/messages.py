@@ -138,6 +138,29 @@ def format_generating_deck() -> dict[str, Any]:
     }
 
 
+def format_regenerating(version: int) -> dict[str, Any]:
+    """Format the 'regenerating deal analysis' status message.
+
+    Args:
+        version: The version number being generated.
+
+    Returns:
+        Slack Block Kit message dict with regenerating status.
+    """
+    return {
+        "text": f"Regenerating Deal Analysis (v{version})...",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f":arrows_counterclockwise: *Regenerating Deal Analysis (v{version})...*",
+                },
+            }
+        ],
+    }
+
+
 def format_deck_complete(link: str) -> dict[str, Any]:
     """Format the proposal deck completion message.
 

@@ -8,7 +8,10 @@ from slack_sdk import WebClient
 
 from proposal_assistant.config import get_config
 from proposal_assistant.docs.client import DocsClient
-from proposal_assistant.docs.deal_analysis import populate_deal_analysis
+from proposal_assistant.docs.deal_analysis import (
+    create_versioned_document_title,
+    populate_deal_analysis,
+)
 from proposal_assistant.drive.client import DriveClient
 from proposal_assistant.drive.folders import get_or_create_client_folder
 from proposal_assistant.drive.permissions import share_with_channel_members
@@ -20,6 +23,7 @@ from proposal_assistant.slack.messages import (
     format_deck_complete,
     format_error,
     format_generating_deck,
+    format_regenerating,
     format_rejection_confirmed,
 )
 from proposal_assistant.slides.client import SlidesClient
@@ -108,7 +112,7 @@ def handle_analyse_command(
     # Use first file for client name extraction
     first_file_name = md_files[0].get("name", "")
 
-    # 5. Transition state to GENERATING_DEAL_ANALYSIS
+    # 4. Transition state to GENERATING_DEAL_ANALYSIS
     state_machine = StateMachine()
     state_machine.transition(
         thread_ts=thread_ts,
@@ -116,6 +120,7 @@ def handle_analyse_command(
         user_id=user_id,
         event=Event.ANALYSE_REQUESTED,
         input_transcript_file_ids=file_ids,
+        input_transcript_content=transcript_parts,
     )
 
     # Acknowledge with "Analyzing..." message
@@ -393,3 +398,143 @@ def handle_rejection(
     say(text=confirmation_msg["text"], blocks=confirmation_msg["blocks"], thread_ts=thread_ts)
 
     logger.info("Proposal deck rejected for thread=%s", thread_ts)
+
+
+def handle_regenerate(
+    body: dict[str, Any],
+    say: Any,
+    client: WebClient,
+) -> None:
+    """Handle the regenerate button click to create a new Deal Analysis version.
+
+    Args:
+        body: Slack action payload containing channel, thread, and user info.
+        say: Slack say function for replying in thread.
+        client: Slack WebClient for API calls.
+    """
+    channel = body.get("channel", {}).get("id")
+    thread_ts = body.get("message", {}).get("thread_ts") or body.get("message", {}).get("ts")
+    user_id = body.get("user", {}).get("id")
+
+    logger.info(
+        "Received regenerate request in channel=%s thread=%s from user=%s",
+        channel,
+        thread_ts,
+        user_id,
+    )
+
+    # 1. Get thread state
+    state_machine = StateMachine()
+    thread_state = state_machine.get_state(thread_ts, channel, user_id)
+
+    # Check for missing state
+    if not thread_state.input_transcript_content or not thread_state.analyse_folder_id:
+        logger.error(
+            "Missing state data for regenerate: transcripts=%s, folder=%s",
+            bool(thread_state.input_transcript_content),
+            bool(thread_state.analyse_folder_id),
+        )
+        error_msg = format_error("STATE_MISSING")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # 2. Calculate new version and transition to GENERATING_DEAL_ANALYSIS
+    new_version = thread_state.deal_analysis_version + 1
+    state_machine.transition(
+        thread_ts=thread_ts,
+        channel_id=channel,
+        event=Event.REGENERATE_REQUESTED,
+        deal_analysis_version=new_version,
+    )
+
+    # Acknowledge with "Regenerating..." message
+    regenerating_msg = format_regenerating(new_version)
+    say(text=regenerating_msg["text"], blocks=regenerating_msg["blocks"], thread_ts=thread_ts)
+
+    config = get_config()
+
+    # 3. Re-run LLM with stored transcript content
+    try:
+        llm = LLMClient(config)
+        result = llm.generate_deal_analysis(transcript=thread_state.input_transcript_content)
+        deal_analysis_content = result["content"]
+        missing_info = result.get("missing_info", [])
+    except LLMError as e:
+        logger.error("LLM error during regenerate: %s (type=%s)", e, e.error_type)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type=e.error_type,
+            error_message=str(e),
+        )
+        error_msg = format_error(e.error_type)
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+    except Exception as e:
+        logger.error("Unexpected LLM error during regenerate: %s", e)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type="LLM_ERROR",
+            error_message=str(e),
+        )
+        error_msg = format_error("LLM_ERROR")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # 4. Create new Google Doc with version number
+    try:
+        docs = DocsClient(config)
+        base_title = f"{thread_state.client_name} - Deal Analysis"
+        doc_title = create_versioned_document_title(base_title, new_version)
+        doc_id, doc_link = docs.create_document(
+            doc_title, thread_state.analyse_folder_id
+        )
+        populate_deal_analysis(docs, doc_id, deal_analysis_content, missing_info)
+    except Exception as e:
+        logger.error("Failed to create Deal Analysis doc: %s", e)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type="DOCS_ERROR",
+            error_message=str(e),
+        )
+        error_msg = format_error("DOCS_ERROR")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # 5. Share doc with channel members
+    try:
+        drive = DriveClient(config)
+        shared_emails = share_with_channel_members(drive, doc_id, channel, client)
+        logger.info("Shared Deal Analysis v%d doc with %d users", new_version, len(shared_emails))
+    except Exception as e:
+        logger.warning("Failed to share Deal Analysis doc: %s", e)
+
+    # 6. Transition to WAITING_FOR_APPROVAL
+    state_machine.transition(
+        thread_ts=thread_ts,
+        channel_id=channel,
+        event=Event.DEAL_ANALYSIS_CREATED,
+        deal_analysis_doc_id=doc_id,
+        deal_analysis_link=doc_link,
+        deal_analysis_content=deal_analysis_content,
+        missing_info_items=missing_info,
+    )
+
+    # 7. Send message with link + approval buttons
+    completion_msg = format_deal_analysis_complete(doc_link, missing_info)
+    approval_buttons = format_approval_buttons()
+
+    blocks = completion_msg["blocks"] + [approval_buttons]
+    say(text=completion_msg["text"], blocks=blocks, thread_ts=thread_ts)
+
+    logger.info(
+        "Deal Analysis v%d complete for %s, doc_id=%s, awaiting approval",
+        new_version,
+        thread_state.client_name,
+        doc_id,
+    )
