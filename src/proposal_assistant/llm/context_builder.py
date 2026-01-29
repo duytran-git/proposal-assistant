@@ -56,11 +56,11 @@ class ContextBuilder:
 
     def build_context(
         self,
-        transcript: str,
+        transcript: str | list[str],
         references: list[str] | None = None,
         web_content: list[str] | None = None,
     ) -> ContextBuildResult:
-        """Assemble context from transcript, references, and web content.
+        """Assemble context from transcript(s), references, and web content.
 
         Each input type has an independent token budget. Content exceeding
         the budget is truncated at line boundaries. Multiple references
@@ -68,7 +68,8 @@ class ContextBuilder:
         splitting with greedy carry-forward.
 
         Args:
-            transcript: Meeting transcript text.
+            transcript: Meeting transcript text, or list of transcripts to merge.
+                Multiple transcripts are merged with "--- Transcript N ---" markers.
             references: List of reference document texts.
             web_content: List of web page content texts.
 
@@ -82,8 +83,11 @@ class ContextBuilder:
         max_refs_chars = self.MAX_REFERENCES_TOKENS * self.CHARS_PER_TOKEN
         max_web_chars = self.MAX_WEB_TOKENS * self.CHARS_PER_TOKEN
 
+        # Merge multiple transcripts with markers
+        merged_transcript = self._merge_transcripts(transcript)
+
         # Transcript
-        transcript_stripped = transcript.strip()
+        transcript_stripped = merged_transcript.strip()
         transcript_original_tokens = self._estimate_tokens(transcript_stripped)
         transcript_included = bool(transcript_stripped)
 
@@ -151,6 +155,34 @@ class ContextBuilder:
             Estimated number of tokens (~4 chars per token).
         """
         return len(text) // self.CHARS_PER_TOKEN
+
+    @staticmethod
+    def _merge_transcripts(transcript: str | list[str]) -> str:
+        """Merge multiple transcripts with numbered separators.
+
+        Args:
+            transcript: Single transcript string or list of transcript strings.
+
+        Returns:
+            Merged transcript with "--- Transcript N ---" markers between files.
+        """
+        if isinstance(transcript, str):
+            return transcript
+
+        # Filter out empty transcripts
+        non_empty = [t.strip() for t in transcript if t.strip()]
+        if not non_empty:
+            return ""
+
+        if len(non_empty) == 1:
+            return non_empty[0]
+
+        # Merge with numbered markers
+        parts = []
+        for i, content in enumerate(non_empty, start=1):
+            parts.append(f"--- Transcript {i} ---\n\n{content}")
+
+        return "\n\n".join(parts)
 
     def _truncate_to_budget(
         self, text: str, max_chars: int

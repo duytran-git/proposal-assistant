@@ -306,7 +306,10 @@ class TestHandleAnalyseCommandHappyPath:
         llm_instance = mock_all_dependencies["LLMClient"].return_value
         llm_instance.generate_deal_analysis.assert_called_once()
         call_kwargs = llm_instance.generate_deal_analysis.call_args[1]
-        assert "Meeting Transcript" in call_kwargs["transcript"]
+        # transcript is now passed as a list
+        assert isinstance(call_kwargs["transcript"], list)
+        assert len(call_kwargs["transcript"]) == 1
+        assert "Meeting Transcript" in call_kwargs["transcript"][0]
 
     def test_creates_google_doc_in_analyse_folder(
         self, mock_say, mock_client, base_message, mock_all_dependencies
@@ -329,18 +332,161 @@ class TestHandleAnalyseCommandHappyPath:
         assert call_args[1] == "analyse_123"  # folder_id
 
 
+class TestHandleAnalyseCommandMultipleFiles:
+    """Tests for multiple file handling."""
+
+    def test_multiple_md_files_merges_content(
+        self, mock_say, mock_client, base_message, mock_all_dependencies
+    ):
+        """Multiple .md files are merged in order with separator."""
+        base_message["files"] = [
+            {
+                "id": "F123",
+                "name": "acme-meeting1.md",
+                "url_private_download": "https://slack.com/files/1",
+            },
+            {
+                "id": "F456",
+                "name": "acme-meeting2.md",
+                "url_private_download": "https://slack.com/files/2",
+            },
+        ]
+
+        # Mock different responses for each file
+        responses = [b"# Meeting 1 content", b"# Meeting 2 content"]
+        call_count = [0]
+
+        def mock_urlopen(req):
+            mock_response = MagicMock()
+            mock_response.read.return_value = responses[call_count[0]]
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            call_count[0] += 1
+            return mock_response
+
+        mock_all_dependencies["urlopen"].side_effect = mock_urlopen
+
+        handle_analyse_command(base_message, mock_say, mock_client)
+
+        # Verify LLM was called with list of transcripts
+        llm_instance = mock_all_dependencies["LLMClient"].return_value
+        call_kwargs = llm_instance.generate_deal_analysis.call_args[1]
+        # transcript is now passed as a list - merging happens in context_builder
+        assert isinstance(call_kwargs["transcript"], list)
+        assert len(call_kwargs["transcript"]) == 2
+        assert "Meeting 1 content" in call_kwargs["transcript"][0]
+        assert "Meeting 2 content" in call_kwargs["transcript"][1]
+
+    def test_multiple_files_tracks_all_file_ids(
+        self, mock_say, mock_client, base_message, mock_all_dependencies
+    ):
+        """All file IDs are tracked in state transition."""
+        from proposal_assistant.state.models import Event
+
+        base_message["files"] = [
+            {
+                "id": "F123",
+                "name": "acme-meeting1.md",
+                "url_private_download": "https://slack.com/files/1",
+            },
+            {
+                "id": "F456",
+                "name": "acme-meeting2.md",
+                "url_private_download": "https://slack.com/files/2",
+            },
+        ]
+
+        handle_analyse_command(base_message, mock_say, mock_client)
+
+        state_machine = mock_all_dependencies["StateMachine"].return_value
+        calls = state_machine.transition.call_args_list
+        first_call = calls[0]
+        assert first_call[1]["event"] == Event.ANALYSE_REQUESTED
+        assert first_call[1]["input_transcript_file_ids"] == ["F123", "F456"]
+
+    def test_non_md_files_are_filtered_out(
+        self, mock_say, mock_client, base_message, mock_all_dependencies
+    ):
+        """Non-.md files are ignored; only .md files are processed."""
+        base_message["files"] = [
+            {
+                "id": "F123",
+                "name": "acme-meeting.md",
+                "url_private_download": "https://slack.com/files/1",
+            },
+            {
+                "id": "F456",
+                "name": "image.png",
+                "url_private_download": "https://slack.com/files/2",
+            },
+            {
+                "id": "F789",
+                "name": "doc.pdf",
+                "url_private_download": "https://slack.com/files/3",
+            },
+        ]
+
+        handle_analyse_command(base_message, mock_say, mock_client)
+
+        # Only F123 should be tracked
+        state_machine = mock_all_dependencies["StateMachine"].return_value
+        calls = state_machine.transition.call_args_list
+        first_call = calls[0]
+        assert first_call[1]["input_transcript_file_ids"] == ["F123"]
+
+    def test_only_non_md_files_shows_error(
+        self, mock_say, mock_client, base_message
+    ):
+        """If no .md files present, shows INPUT_INVALID error."""
+        base_message["files"] = [
+            {"id": "F123", "name": "image.png", "url_private_download": "https://..."},
+            {"id": "F456", "name": "doc.pdf", "url_private_download": "https://..."},
+        ]
+
+        handle_analyse_command(base_message, mock_say, mock_client)
+
+        mock_say.assert_called_once()
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["text"] == ERROR_MESSAGES["INPUT_INVALID"]
+
+    def test_client_name_from_first_file(
+        self, mock_say, mock_client, base_message, mock_all_dependencies
+    ):
+        """Client name is extracted from the first .md file."""
+        base_message["files"] = [
+            {
+                "id": "F123",
+                "name": "alpha-meeting.md",
+                "url_private_download": "https://slack.com/files/1",
+            },
+            {
+                "id": "F456",
+                "name": "beta-meeting.md",
+                "url_private_download": "https://slack.com/files/2",
+            },
+        ]
+
+        mock_all_dependencies["extract_client_name"].return_value = "alpha"
+
+        handle_analyse_command(base_message, mock_say, mock_client)
+
+        mock_all_dependencies["extract_client_name"].assert_called_with("alpha-meeting.md")
+
+
 class TestHandleAnalyseCommandErrorPaths:
     """Tests for error handling in the workflow."""
 
     def test_missing_download_url_shows_error(
-        self, mock_say, mock_client, base_message
+        self, mock_say, mock_client, base_message, mock_config
     ):
         """Missing download URL shows INPUT_INVALID error."""
         base_message["files"] = [
             {"id": "F123", "name": "test.md"}  # No url_private_download
         ]
 
-        handle_analyse_command(base_message, mock_say, mock_client)
+        with patch("proposal_assistant.slack.handlers.get_config") as get_config:
+            get_config.return_value = mock_config
+            handle_analyse_command(base_message, mock_say, mock_client)
 
         mock_say.assert_called_once()
         call_kwargs = mock_say.call_args[1]

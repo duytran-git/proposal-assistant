@@ -81,7 +81,7 @@ class LLMClient:
 
     def generate_deal_analysis(
         self,
-        transcript: str,
+        transcript: str | list[str],
         references: list[str] | None = None,
         web_content: list[str] | None = None,
     ) -> dict[str, Any]:
@@ -91,7 +91,7 @@ class LLMClient:
         deal analysis prompt, and parses the structured JSON response.
 
         Args:
-            transcript: Meeting transcript text.
+            transcript: Meeting transcript text, or list of transcript texts.
             references: Optional reference document texts.
             web_content: Optional web research content texts.
 

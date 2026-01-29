@@ -61,53 +61,69 @@ def handle_analyse_command(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 2. Download file from Slack
-    file_info = files[0]
-    file_name = file_info.get("name", "")
-    download_url = file_info.get("url_private_download")
-
-    if not download_url:
+    # 2. Filter for .md files only
+    md_files = [f for f in files if f.get("name", "").lower().endswith(".md")]
+    if not md_files:
         error_msg = format_error("INPUT_INVALID")
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    try:
-        config = get_config()
-        req = urllib.request.Request(
-            download_url,
-            headers={"Authorization": f"Bearer {config.slack_bot_token}"},
-        )
-        with urllib.request.urlopen(req) as response:
-            transcript_content = response.read().decode("utf-8")
-    except Exception as e:
-        logger.error("Failed to download file: %s", e)
-        error_msg = format_error("INPUT_INVALID")
-        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
-        return
+    # 3. Download and validate all .md files
+    config = get_config()
+    transcript_parts: list[str] = []
+    file_ids: list[str] = []
 
-    # 3. Validate transcript
-    validation = validate_transcript(file_name, transcript_content)
-    if not validation.is_valid:
-        error_msg = format_error("INPUT_INVALID")
-        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
-        return
+    for file_info in md_files:
+        file_name = file_info.get("name", "")
+        download_url = file_info.get("url_private_download")
 
-    # 4. Transition state to GENERATING_DEAL_ANALYSIS
+        if not download_url:
+            error_msg = format_error("INPUT_INVALID")
+            say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+            return
+
+        try:
+            req = urllib.request.Request(
+                download_url,
+                headers={"Authorization": f"Bearer {config.slack_bot_token}"},
+            )
+            with urllib.request.urlopen(req) as response:
+                content = response.read().decode("utf-8")
+        except Exception as e:
+            logger.error("Failed to download file %s: %s", file_name, e)
+            error_msg = format_error("INPUT_INVALID")
+            say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+            return
+
+        # Validate each transcript
+        validation = validate_transcript(file_name, content)
+        if not validation.is_valid:
+            error_msg = format_error("INPUT_INVALID")
+            say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+            return
+
+        transcript_parts.append(content)
+        file_ids.append(file_info.get("id"))
+
+    # Use first file for client name extraction
+    first_file_name = md_files[0].get("name", "")
+
+    # 5. Transition state to GENERATING_DEAL_ANALYSIS
     state_machine = StateMachine()
     state_machine.transition(
         thread_ts=thread_ts,
         channel_id=channel,
         user_id=user_id,
         event=Event.ANALYSE_REQUESTED,
-        input_transcript_file_ids=[file_info.get("id")],
+        input_transcript_file_ids=file_ids,
     )
 
     # Acknowledge with "Analyzing..." message
     analyzing_msg = format_analyzing()
     say(text=analyzing_msg["text"], blocks=analyzing_msg["blocks"], thread_ts=thread_ts)
 
-    # 5. Extract client name and create folder structure
-    client_name = extract_client_name(file_name) or "unknown-client"
+    # 6. Extract client name and create folder structure
+    client_name = extract_client_name(first_file_name) or "unknown-client"
 
     try:
         drive = DriveClient(config)
@@ -128,7 +144,7 @@ def handle_analyse_command(
     # 6. Build context and call LLM
     try:
         llm = LLMClient(config)
-        result = llm.generate_deal_analysis(transcript=transcript_content)
+        result = llm.generate_deal_analysis(transcript=transcript_parts)
         deal_analysis_content = result["content"]
         missing_info = result.get("missing_info", [])
     except LLMError as e:
