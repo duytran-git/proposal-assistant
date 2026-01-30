@@ -34,17 +34,11 @@ class SlidesClient:
             json.loads(config.google_service_account_json),
             scopes=SCOPES,
         )
-        self._slides_service = build(
-            "slides", "v1", credentials=credentials
-        )
-        self._drive_service = build(
-            "drive", "v3", credentials=credentials
-        )
+        self._slides_service = build("slides", "v1", credentials=credentials)
+        self._drive_service = build("drive", "v3", credentials=credentials)
         self._template_id = config.proposal_template_slide_id
 
-    def duplicate_template(
-        self, title: str, folder_id: str
-    ) -> tuple[str, str]:
+    def duplicate_template(self, title: str, folder_id: str) -> tuple[str, str]:
         """Duplicate the proposal template into a target folder.
 
         Copies the configured template presentation via the Drive API,
@@ -76,9 +70,7 @@ class SlidesClient:
         )
         return presentation_id, web_link
 
-    def get_layout_by_name(
-        self, presentation_id: str, layout_name: str
-    ) -> str | None:
+    def get_layout_by_name(self, presentation_id: str, layout_name: str) -> str | None:
         """Get a slide layout object ID by its display name.
 
         Args:
@@ -97,9 +89,7 @@ class SlidesClient:
             .execute()
         )
         for layout in presentation.get("layouts", []):
-            display_name = (
-                layout.get("layoutProperties", {}).get("displayName", "")
-            )
+            display_name = layout.get("layoutProperties", {}).get("displayName", "")
             if display_name == layout_name:
                 return layout["objectId"]
         return None

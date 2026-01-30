@@ -83,3 +83,84 @@ class TestMain:
 
             mock_handler_cls.assert_called_once_with(mock_app, "xapp-test-token")
             mock_handler.start.assert_called_once()
+
+
+class TestAppHandlerRegistration:
+    """Tests for handler registration in create_app."""
+
+    def test_registers_message_event_handler(self, mock_config):
+        """create_app registers a message event handler for file uploads."""
+        with (
+            patch("proposal_assistant.main.get_config", return_value=mock_config),
+            patch("proposal_assistant.main.App") as mock_app_cls,
+        ):
+            mock_app = MagicMock()
+            mock_app_cls.return_value = mock_app
+
+            from proposal_assistant.main import create_app
+
+            create_app()
+
+            # Verify @app.event("message") was called
+            mock_app.event.assert_called_with("message")
+
+    def test_registers_approve_deck_action(self, mock_config):
+        """create_app registers approve_deck action handler."""
+        with (
+            patch("proposal_assistant.main.get_config", return_value=mock_config),
+            patch("proposal_assistant.main.App") as mock_app_cls,
+        ):
+            mock_app = MagicMock()
+            mock_app_cls.return_value = mock_app
+
+            from proposal_assistant.main import create_app
+
+            create_app()
+
+            # Verify @app.action("approve_deck") was called
+            mock_app.action.assert_any_call("approve_deck")
+
+    def test_registers_reject_deck_action(self, mock_config):
+        """create_app registers reject_deck action handler."""
+        with (
+            patch("proposal_assistant.main.get_config", return_value=mock_config),
+            patch("proposal_assistant.main.App") as mock_app_cls,
+        ):
+            mock_app = MagicMock()
+            mock_app_cls.return_value = mock_app
+
+            from proposal_assistant.main import create_app
+
+            create_app()
+
+            mock_app.action.assert_any_call("reject_deck")
+
+    def test_registers_cloud_consent_yes_action(self, mock_config):
+        """create_app registers cloud_consent_yes action handler."""
+        with (
+            patch("proposal_assistant.main.get_config", return_value=mock_config),
+            patch("proposal_assistant.main.App") as mock_app_cls,
+        ):
+            mock_app = MagicMock()
+            mock_app_cls.return_value = mock_app
+
+            from proposal_assistant.main import create_app
+
+            create_app()
+
+            mock_app.action.assert_any_call("cloud_consent_yes")
+
+    def test_registers_cloud_consent_no_action(self, mock_config):
+        """create_app registers cloud_consent_no action handler."""
+        with (
+            patch("proposal_assistant.main.get_config", return_value=mock_config),
+            patch("proposal_assistant.main.App") as mock_app_cls,
+        ):
+            mock_app = MagicMock()
+            mock_app_cls.return_value = mock_app
+
+            from proposal_assistant.main import create_app
+
+            create_app()
+
+            mock_app.action.assert_any_call("cloud_consent_no")

@@ -9,9 +9,7 @@ Tests the complete flow:
 import json
 from unittest.mock import MagicMock, patch
 
-import httpx
 import pytest
-from openai import APIConnectionError
 
 from proposal_assistant.config import Config
 from proposal_assistant.llm.client import LLMClient, LLMError
@@ -143,12 +141,16 @@ class TestOllamaOfflineShowsCloudConsent:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
-            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.StateMachine"),
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClientMock,
         ):
             from proposal_assistant.utils.validation import ValidationResult
@@ -199,12 +201,16 @@ class TestOllamaOfflineShowsCloudConsent:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
-            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.StateMachine"),
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClientMock,
         ):
             from proposal_assistant.utils.validation import ValidationResult
@@ -257,12 +263,19 @@ class TestCloudConsentAcceptedUsesCloud:
             channel_type="channel",
             analyse_folder_id="analyse_123",
             proposals_folder_id="proposals_123",
-            input_transcript_content=["# Meeting transcript\n\nDiscussion about Acme Corp."],
+            input_transcript_content=[
+                "# Meeting transcript\n\nDiscussion about Acme Corp."
+            ],
             error_type="LLM_OFFLINE",
         )
 
     def test_cloud_consent_yes_uses_cloud_llm(
-        self, mock_say, mock_client, cloud_consent_body, mock_config_with_cloud, mock_thread_state_for_cloud
+        self,
+        mock_say,
+        mock_client,
+        cloud_consent_body,
+        mock_config_with_cloud,
+        mock_thread_state_for_cloud,
     ):
         """Accepting cloud consent calls LLM with use_cloud=True."""
         with (
@@ -274,7 +287,9 @@ class TestCloudConsentAcceptedUsesCloud:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config_with_cloud
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_cloud
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_cloud
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -284,7 +299,10 @@ class TestCloudConsentAcceptedUsesCloud:
             LLMClientMock.return_value = mock_llm
 
             mock_docs = MagicMock()
-            mock_docs.create_document.return_value = ("doc_123", "https://docs.google.com/doc")
+            mock_docs.create_document.return_value = (
+                "doc_123",
+                "https://docs.google.com/doc",
+            )
             DocsClient.return_value = mock_docs
 
             handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)
@@ -293,10 +311,17 @@ class TestCloudConsentAcceptedUsesCloud:
         mock_llm.generate_deal_analysis.assert_called_once()
         call_kwargs = mock_llm.generate_deal_analysis.call_args[1]
         assert call_kwargs["use_cloud"] is True
-        assert call_kwargs["transcript"] == ["# Meeting transcript\n\nDiscussion about Acme Corp."]
+        assert call_kwargs["transcript"] == [
+            "# Meeting transcript\n\nDiscussion about Acme Corp."
+        ]
 
     def test_cloud_consent_yes_transitions_with_cloud_consent_given(
-        self, mock_say, mock_client, cloud_consent_body, mock_config_with_cloud, mock_thread_state_for_cloud
+        self,
+        mock_say,
+        mock_client,
+        cloud_consent_body,
+        mock_config_with_cloud,
+        mock_thread_state_for_cloud,
     ):
         """Accepting cloud consent sets cloud_consent_given=True in state."""
         with (
@@ -308,7 +333,9 @@ class TestCloudConsentAcceptedUsesCloud:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config_with_cloud
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_cloud
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_cloud
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -332,7 +359,12 @@ class TestCloudConsentAcceptedUsesCloud:
         assert first_call[1]["cloud_consent_given"] is True
 
     def test_cloud_consent_yes_completes_deal_analysis(
-        self, mock_say, mock_client, cloud_consent_body, mock_config_with_cloud, mock_thread_state_for_cloud
+        self,
+        mock_say,
+        mock_client,
+        cloud_consent_body,
+        mock_config_with_cloud,
+        mock_thread_state_for_cloud,
     ):
         """Accepting cloud consent completes deal analysis flow."""
         with (
@@ -344,7 +376,9 @@ class TestCloudConsentAcceptedUsesCloud:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config_with_cloud
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_cloud
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_cloud
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -433,7 +467,9 @@ class TestLLMClientCloudCalls:
         mock_local.chat.completions.create.assert_called_once()
         mock_cloud.chat.completions.create.assert_not_called()
 
-    def test_cloud_call_raises_error_when_not_configured(self, mock_config_without_cloud):
+    def test_cloud_call_raises_error_when_not_configured(
+        self, mock_config_without_cloud
+    ):
         """Calling cloud when not configured raises LLMError."""
         with patch("proposal_assistant.llm.client.OpenAI") as MockOpenAI:
             mock_local = MagicMock()
@@ -455,10 +491,12 @@ class TestLLMClientCloudCalls:
 
             mock_cloud_response = MagicMock()
             mock_cloud_response.choices = [MagicMock()]
-            mock_cloud_response.choices[0].message.content = json.dumps({
-                "deal_analysis": {"company": "Test Corp"},
-                "missing_info": [],
-            })
+            mock_cloud_response.choices[0].message.content = json.dumps(
+                {
+                    "deal_analysis": {"company": "Test Corp"},
+                    "missing_info": [],
+                }
+            )
             mock_cloud.chat.completions.create.return_value = mock_cloud_response
 
             MockOpenAI.side_effect = [mock_local, mock_cloud]
@@ -485,12 +523,16 @@ class TestEndToEndCloudFallbackFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClientMock,
         ):
             from proposal_assistant.utils.validation import ValidationResult
@@ -524,7 +566,8 @@ class TestEndToEndCloudFallbackFlow:
             # Verify state was transitioned to ERROR with LLM_OFFLINE
             state_machine = StateMachine.return_value
             failed_call = [
-                call for call in state_machine.transition.call_args_list
+                call
+                for call in state_machine.transition.call_args_list
                 if call[1].get("event") == Event.FAILED
             ]
             assert len(failed_call) == 1
@@ -575,7 +618,10 @@ class TestEndToEndCloudFallbackFlow:
             LLMClientMock.return_value = mock_llm
 
             mock_docs = MagicMock()
-            mock_docs.create_document.return_value = ("doc_123", "https://docs.google.com/doc")
+            mock_docs.create_document.return_value = (
+                "doc_123",
+                "https://docs.google.com/doc",
+            )
             DocsClient.return_value = mock_docs
 
             handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)

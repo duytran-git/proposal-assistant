@@ -84,7 +84,7 @@ class TestTryParseJson:
 
     def test_returns_none_for_json_array(self):
         """Returns None when JSON is an array, not object."""
-        result = _try_parse_json('[1, 2, 3]')
+        result = _try_parse_json("[1, 2, 3]")
         assert result is None
 
 

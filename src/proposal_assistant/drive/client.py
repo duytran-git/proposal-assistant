@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
+
 class DriveClient:
     """Google Drive API wrapper using service account authentication."""
 
@@ -65,11 +66,7 @@ class DriveClient:
             "mimeType": "application/vnd.google-apps.folder",
             "parents": [parent_id],
         }
-        folder = (
-            self._service.files()
-            .create(body=metadata, fields="id")
-            .execute()
-        )
+        folder = self._service.files().create(body=metadata, fields="id").execute()
         logger.info("Created folder '%s' with id=%s", folder_name, folder["id"])
         return folder["id"]
 
@@ -92,9 +89,7 @@ class DriveClient:
 
         return buffer.getvalue()
 
-    def share_file(
-        self, file_id: str, email: str, role: str = "writer"
-    ) -> None:
+    def share_file(self, file_id: str, email: str, role: str = "writer") -> None:
         """Share file with user email.
 
         Args:

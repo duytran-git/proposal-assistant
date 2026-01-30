@@ -35,6 +35,7 @@ def create_versioned_document_title(title: str, version: int) -> str:
         return title
     return f"{title} v{version}"
 
+
 SNAPSHOT_FIELDS: list[tuple[str, str]] = [
     ("Company", "company"),
     ("Industry / Segment", "industry_segment"),
@@ -101,17 +102,13 @@ def _build_segments(
         _add_missing_info_warning(segments, missing_info)
 
     # 1. Opportunity Snapshot
-    _add_opportunity_snapshot(
-        segments, content.get("opportunity_snapshot", {})
-    )
+    _add_opportunity_snapshot(segments, content.get("opportunity_snapshot", {}))
 
     # 2. Problem & Impact
     _add_problem_impact(segments, content.get("problem_impact", {}))
 
     # 3. Current vs Desired State
-    _add_current_desired_state(
-        segments, content.get("current_desired_state", {})
-    )
+    _add_current_desired_state(segments, content.get("current_desired_state", {}))
 
     # 4. Buying Dynamics & Risk
     _add_buying_dynamics(segments, content.get("buying_dynamics", {}))
@@ -120,9 +117,7 @@ def _build_segments(
     _add_renessai_fit(segments, content.get("renessai_fit", {}))
 
     # 6. Proof & Next Actions
-    _add_proof_next_actions(
-        segments, content.get("proof_next_actions", {})
-    )
+    _add_proof_next_actions(segments, content.get("proof_next_actions", {}))
 
     # Footer disclaimer
     segments.append(_Segment("\n"))
@@ -174,85 +169,41 @@ def _add_opportunity_snapshot(
     segments.append(_Segment("\n"))
 
 
-def _add_problem_impact(
-    segments: list[_Segment], data: dict[str, Any]
-) -> None:
+def _add_problem_impact(segments: list[_Segment], data: dict[str, Any]) -> None:
     """Add Section 2: Problem & Impact."""
     segments.append(_Segment("2. Problem & Impact\n", heading=1))
-    segments.append(
-        _Segment("2.1 Core Problem Statement\n", heading=2)
-    )
-    segments.append(
-        _Segment(f"{data.get('core_problem_statement', 'Unknown')}\n\n")
-    )
+    segments.append(_Segment("2.1 Core Problem Statement\n", heading=2))
+    segments.append(_Segment(f"{data.get('core_problem_statement', 'Unknown')}\n\n"))
     segments.append(_Segment("2.2 Business Impact\n", heading=2))
-    segments.append(
-        _Segment(f"{data.get('business_impact', 'Unknown')}\n\n")
-    )
+    segments.append(_Segment(f"{data.get('business_impact', 'Unknown')}\n\n"))
 
 
-def _add_current_desired_state(
-    segments: list[_Segment], data: dict[str, Any]
-) -> None:
+def _add_current_desired_state(segments: list[_Segment], data: dict[str, Any]) -> None:
     """Add Section 3: Current vs Desired State."""
-    segments.append(
-        _Segment("3. Current vs Desired State\n", heading=1)
-    )
+    segments.append(_Segment("3. Current vs Desired State\n", heading=1))
     segments.append(_Segment("3.1 Current State\n", heading=2))
-    segments.append(
-        _Segment(f"{data.get('current_state', 'Unknown')}\n\n")
-    )
-    segments.append(
-        _Segment("3.2 Desired Future State\n", heading=2)
-    )
-    segments.append(
-        _Segment(f"{data.get('desired_future_state', 'Unknown')}\n\n")
-    )
+    segments.append(_Segment(f"{data.get('current_state', 'Unknown')}\n\n"))
+    segments.append(_Segment("3.2 Desired Future State\n", heading=2))
+    segments.append(_Segment(f"{data.get('desired_future_state', 'Unknown')}\n\n"))
 
 
-def _add_buying_dynamics(
-    segments: list[_Segment], data: dict[str, Any]
-) -> None:
+def _add_buying_dynamics(segments: list[_Segment], data: dict[str, Any]) -> None:
     """Add Section 4: Buying Dynamics & Risk."""
-    segments.append(
-        _Segment("4. Buying Dynamics & Risk\n", heading=1)
-    )
-    segments.append(
-        _Segment("4.1 Stakeholders & Power Map\n", heading=2)
-    )
-    segments.append(
-        _Segment(
-            f"{data.get('stakeholders_power_map', 'Unknown')}\n\n"
-        )
-    )
-    segments.append(
-        _Segment("4.2 Decision Process & Timing\n", heading=2)
-    )
-    segments.append(
-        _Segment(
-            f"{data.get('decision_process_timing', 'Unknown')}\n\n"
-        )
-    )
+    segments.append(_Segment("4. Buying Dynamics & Risk\n", heading=1))
+    segments.append(_Segment("4.1 Stakeholders & Power Map\n", heading=2))
+    segments.append(_Segment(f"{data.get('stakeholders_power_map', 'Unknown')}\n\n"))
+    segments.append(_Segment("4.2 Decision Process & Timing\n", heading=2))
+    segments.append(_Segment(f"{data.get('decision_process_timing', 'Unknown')}\n\n"))
     segments.append(_Segment("4.3 Perceived Risks\n", heading=2))
-    segments.append(
-        _Segment(f"{data.get('perceived_risks', 'Unknown')}\n\n")
-    )
+    segments.append(_Segment(f"{data.get('perceived_risks', 'Unknown')}\n\n"))
 
 
-def _add_renessai_fit(
-    segments: list[_Segment], data: dict[str, Any]
-) -> None:
+def _add_renessai_fit(segments: list[_Segment], data: dict[str, Any]) -> None:
     """Add Section 5: Renessai Fit & Strategy."""
+    segments.append(_Segment("5. Renessai Fit & Strategy\n", heading=1))
+    segments.append(_Segment("5.1 How Renessai Solves Top Pains\n", heading=2))
     segments.append(
-        _Segment("5. Renessai Fit & Strategy\n", heading=1)
-    )
-    segments.append(
-        _Segment("5.1 How Renessai Solves Top Pains\n", heading=2)
-    )
-    segments.append(
-        _Segment(
-            f"{data.get('how_renessai_solves_top_pains', 'Unknown')}\n\n"
-        )
+        _Segment(f"{data.get('how_renessai_solves_top_pains', 'Unknown')}\n\n")
     )
     segments.append(
         _Segment(
@@ -261,39 +212,19 @@ def _add_renessai_fit(
         )
     )
     segments.append(
-        _Segment(
-            f"{data.get('differentiation_vs_status_quo', 'Unknown')}\n\n"
-        )
+        _Segment(f"{data.get('differentiation_vs_status_quo', 'Unknown')}\n\n")
     )
-    segments.append(
-        _Segment("5.3 Delivery & Phasing Idea\n", heading=2)
-    )
-    segments.append(
-        _Segment(
-            f"{data.get('delivery_phasing_idea', 'Unknown')}\n\n"
-        )
-    )
+    segments.append(_Segment("5.3 Delivery & Phasing Idea\n", heading=2))
+    segments.append(_Segment(f"{data.get('delivery_phasing_idea', 'Unknown')}\n\n"))
 
 
-def _add_proof_next_actions(
-    segments: list[_Segment], data: dict[str, Any]
-) -> None:
+def _add_proof_next_actions(segments: list[_Segment], data: dict[str, Any]) -> None:
     """Add Section 6: Proof & Next Actions."""
-    segments.append(
-        _Segment("6. Proof & Next Actions\n", heading=1)
-    )
-    segments.append(
-        _Segment("6.1 Proof Points to Use\n", heading=2)
-    )
-    segments.append(
-        _Segment(
-            f"{data.get('proof_points_to_use', 'Unknown')}\n\n"
-        )
-    )
+    segments.append(_Segment("6. Proof & Next Actions\n", heading=1))
+    segments.append(_Segment("6.1 Proof Points to Use\n", heading=2))
+    segments.append(_Segment(f"{data.get('proof_points_to_use', 'Unknown')}\n\n"))
     segments.append(_Segment("6.2 Next Steps\n", heading=2))
-    segments.append(
-        _Segment(f"{data.get('next_steps', 'Unknown')}\n\n")
-    )
+    segments.append(_Segment(f"{data.get('next_steps', 'Unknown')}\n\n"))
 
 
 # ── Request builder ───────────────────────────────────────────────
@@ -362,9 +293,7 @@ def _segments_to_requests(
         if segment.color:
             r, g, b = segment.color
             text_style["foregroundColor"] = {
-                "color": {
-                    "rgbColor": {"red": r, "green": g, "blue": b}
-                }
+                "color": {"rgbColor": {"red": r, "green": g, "blue": b}}
             }
             style_fields.append("foregroundColor")
 

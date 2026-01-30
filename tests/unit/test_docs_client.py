@@ -60,18 +60,14 @@ def docs_client(mock_config):
 @pytest.fixture
 def deal_content():
     """Load deal analysis content from fixture."""
-    data = json.loads(
-        (FIXTURES_DIR / "deal_analysis_response.json").read_text()
-    )
+    data = json.loads((FIXTURES_DIR / "deal_analysis_response.json").read_text())
     return data["deal_analysis"]
 
 
 @pytest.fixture
 def missing_info():
     """Load missing info from fixture."""
-    data = json.loads(
-        (FIXTURES_DIR / "deal_analysis_response.json").read_text()
-    )
+    data = json.loads((FIXTURES_DIR / "deal_analysis_response.json").read_text())
     return data["missing_info"]
 
 
@@ -83,20 +79,14 @@ class TestDocsClientInit:
 
     def test_creates_credentials_with_correct_scopes(self, mock_config):
         with (
-            patch(
-                "proposal_assistant.docs.client.Credentials"
-            ) as mock_creds,
+            patch("proposal_assistant.docs.client.Credentials") as mock_creds,
             patch("proposal_assistant.docs.client.build"),
         ):
-            mock_creds.from_service_account_info.return_value = (
-                MagicMock()
-            )
+            mock_creds.from_service_account_info.return_value = MagicMock()
             DocsClient(mock_config)
 
             mock_creds.from_service_account_info.assert_called_once()
-            call_kwargs = (
-                mock_creds.from_service_account_info.call_args
-            )
+            call_kwargs = mock_creds.from_service_account_info.call_args
             assert call_kwargs[0][0] == {
                 "type": "service_account",
                 "project_id": "test",
@@ -105,9 +95,7 @@ class TestDocsClientInit:
 
     def test_builds_docs_v1_service(self, mock_config):
         with (
-            patch(
-                "proposal_assistant.docs.client.Credentials"
-            ) as mock_creds,
+            patch("proposal_assistant.docs.client.Credentials") as mock_creds,
             patch("proposal_assistant.docs.client.build") as mock_build,
         ):
             creds = MagicMock()
@@ -123,9 +111,7 @@ class TestDocsClientInit:
 
     def test_builds_drive_v3_service(self, mock_config):
         with (
-            patch(
-                "proposal_assistant.docs.client.Credentials"
-            ) as mock_creds,
+            patch("proposal_assistant.docs.client.Credentials") as mock_creds,
             patch("proposal_assistant.docs.client.build") as mock_build,
         ):
             creds = MagicMock()
@@ -135,8 +121,7 @@ class TestDocsClientInit:
 
             calls = mock_build.call_args_list
             assert any(
-                c.args == ("drive", "v3")
-                and c.kwargs["credentials"] == creds
+                c.args == ("drive", "v3") and c.kwargs["credentials"] == creds
                 for c in calls
             )
 
@@ -154,9 +139,7 @@ class TestCreateDocument:
             "webViewLink": "https://docs.google.com/document/d/doc_123/edit",
         }
 
-        doc_id, web_link = docs_client.create_document(
-            "Test Doc", "folder_456"
-        )
+        doc_id, web_link = docs_client.create_document("Test Doc", "folder_456")
 
         assert doc_id == "doc_123"
         assert web_link == "https://docs.google.com/document/d/doc_123/edit"
@@ -198,9 +181,7 @@ class TestBuildSegments:
 
     def test_includes_all_six_section_headings(self, deal_content):
         segments = _build_segments(deal_content, [])
-        heading_texts = [
-            s.text for s in segments if s.heading == 1
-        ]
+        heading_texts = [s.text for s in segments if s.heading == 1]
         assert "1. Opportunity Snapshot\n" in heading_texts
         assert "2. Problem & Impact\n" in heading_texts
         assert "3. Current vs Desired State\n" in heading_texts
@@ -273,17 +254,13 @@ class TestMissingInfoWarning:
         full_text = "".join(s.text for s in segments)
         assert "Missing Information" not in full_text
 
-    def test_warning_lists_each_item(
-        self, deal_content, missing_info
-    ):
+    def test_warning_lists_each_item(self, deal_content, missing_info):
         segments = _build_segments(deal_content, missing_info)
         full_text = "".join(s.text for s in segments)
         for item in missing_info:
             assert item in full_text
 
-    def test_warning_items_are_red(
-        self, deal_content, missing_info
-    ):
+    def test_warning_items_are_red(self, deal_content, missing_info):
         segments = _build_segments(deal_content, missing_info)
         red = (0.8, 0.0, 0.0)
         warning_segments = []
@@ -301,28 +278,18 @@ class TestMissingInfoWarning:
                 break
         assert len(warning_segments) >= 2  # heading + description + items
 
-    def test_warning_heading_is_bold(
-        self, deal_content, missing_info
-    ):
+    def test_warning_heading_is_bold(self, deal_content, missing_info):
         segments = _build_segments(deal_content, missing_info)
-        heading = next(
-            s for s in segments if "Missing Information" in s.text
-        )
+        heading = next(s for s in segments if "Missing Information" in s.text)
         assert heading.bold is True
         assert heading.heading == 2
 
-    def test_warning_precedes_section_1(
-        self, deal_content, missing_info
-    ):
+    def test_warning_precedes_section_1(self, deal_content, missing_info):
         segments = _build_segments(deal_content, missing_info)
         texts = [s.text for s in segments]
-        warning_idx = next(
-            i for i, t in enumerate(texts) if "Missing Information" in t
-        )
+        warning_idx = next(i for i, t in enumerate(texts) if "Missing Information" in t)
         snapshot_idx = next(
-            i
-            for i, t in enumerate(texts)
-            if "1. Opportunity Snapshot" in t
+            i for i, t in enumerate(texts) if "1. Opportunity Snapshot" in t
         )
         assert warning_idx < snapshot_idx
 
@@ -345,17 +312,13 @@ class TestSegmentsToRequests:
     def test_inserts_all_text_at_once(self, deal_content):
         segments = _build_segments(deal_content, [])
         requests = _segments_to_requests(segments)
-        insert_requests = [
-            r for r in requests if "insertText" in r
-        ]
+        insert_requests = [r for r in requests if "insertText" in r]
         assert len(insert_requests) == 1
 
     def test_heading_generates_paragraph_style(self):
         segments = [_Segment("Title\n", heading=1)]
         requests = _segments_to_requests(segments)
-        para_reqs = [
-            r for r in requests if "updateParagraphStyle" in r
-        ]
+        para_reqs = [r for r in requests if "updateParagraphStyle" in r]
         assert len(para_reqs) == 1
         style = para_reqs[0]["updateParagraphStyle"]
         assert style["paragraphStyle"]["namedStyleType"] == "HEADING_1"
@@ -364,18 +327,14 @@ class TestSegmentsToRequests:
     def test_heading_2_generates_correct_style(self):
         segments = [_Segment("Sub\n", heading=2)]
         requests = _segments_to_requests(segments)
-        para_reqs = [
-            r for r in requests if "updateParagraphStyle" in r
-        ]
+        para_reqs = [r for r in requests if "updateParagraphStyle" in r]
         style = para_reqs[0]["updateParagraphStyle"]
         assert style["paragraphStyle"]["namedStyleType"] == "HEADING_2"
 
     def test_bold_generates_text_style(self):
         segments = [_Segment("Bold text\n", bold=True)]
         requests = _segments_to_requests(segments)
-        text_reqs = [
-            r for r in requests if "updateTextStyle" in r
-        ]
+        text_reqs = [r for r in requests if "updateTextStyle" in r]
         assert len(text_reqs) == 1
         style = text_reqs[0]["updateTextStyle"]
         assert style["textStyle"]["bold"] is True
@@ -384,9 +343,7 @@ class TestSegmentsToRequests:
     def test_italic_generates_text_style(self):
         segments = [_Segment("Italic\n", italic=True)]
         requests = _segments_to_requests(segments)
-        text_reqs = [
-            r for r in requests if "updateTextStyle" in r
-        ]
+        text_reqs = [r for r in requests if "updateTextStyle" in r]
         style = text_reqs[0]["updateTextStyle"]
         assert style["textStyle"]["italic"] is True
         assert style["fields"] == "italic"
@@ -394,22 +351,16 @@ class TestSegmentsToRequests:
     def test_color_generates_foreground_color(self):
         segments = [_Segment("Red\n", color=(0.8, 0.0, 0.0))]
         requests = _segments_to_requests(segments)
-        text_reqs = [
-            r for r in requests if "updateTextStyle" in r
+        text_reqs = [r for r in requests if "updateTextStyle" in r]
+        rgb = text_reqs[0]["updateTextStyle"]["textStyle"]["foregroundColor"]["color"][
+            "rgbColor"
         ]
-        rgb = text_reqs[0]["updateTextStyle"]["textStyle"][
-            "foregroundColor"
-        ]["color"]["rgbColor"]
         assert rgb == {"red": 0.8, "green": 0.0, "blue": 0.0}
 
     def test_combined_styles_in_single_request(self):
-        segments = [
-            _Segment("Styled\n", bold=True, color=(0.5, 0.5, 0.5))
-        ]
+        segments = [_Segment("Styled\n", bold=True, color=(0.5, 0.5, 0.5))]
         requests = _segments_to_requests(segments)
-        text_reqs = [
-            r for r in requests if "updateTextStyle" in r
-        ]
+        text_reqs = [r for r in requests if "updateTextStyle" in r]
         assert len(text_reqs) == 1
         style = text_reqs[0]["updateTextStyle"]
         assert style["textStyle"]["bold"] is True
@@ -428,16 +379,12 @@ class TestSegmentsToRequests:
             _Segment("BB\n", bold=True),  # 3 chars, indices 6-8
         ]
         requests = _segments_to_requests(segments)
-        para_req = next(
-            r for r in requests if "updateParagraphStyle" in r
-        )
+        para_req = next(r for r in requests if "updateParagraphStyle" in r)
         assert para_req["updateParagraphStyle"]["range"] == {
             "startIndex": 1,
             "endIndex": 6,
         }
-        text_req = next(
-            r for r in requests if "updateTextStyle" in r
-        )
+        text_req = next(r for r in requests if "updateTextStyle" in r)
         assert text_req["updateTextStyle"]["range"] == {
             "startIndex": 6,
             "endIndex": 9,
@@ -450,26 +397,16 @@ class TestSegmentsToRequests:
 class TestPopulateDealAnalysis:
     """Tests for populate_deal_analysis end-to-end."""
 
-    def test_calls_batch_update_with_doc_id(
-        self, docs_client, deal_content
-    ):
-        populate_deal_analysis(
-            docs_client, "doc_abc", deal_content
-        )
+    def test_calls_batch_update_with_doc_id(self, docs_client, deal_content):
+        populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
         mock_docs = docs_client._mock_docs_service
         mock_docs.documents.return_value.batchUpdate.assert_called_once()
-        call_kwargs = (
-            mock_docs.documents.return_value.batchUpdate.call_args[1]
-        )
+        call_kwargs = mock_docs.documents.return_value.batchUpdate.call_args[1]
         assert call_kwargs["documentId"] == "doc_abc"
 
-    def test_batch_update_body_has_requests(
-        self, docs_client, deal_content
-    ):
-        populate_deal_analysis(
-            docs_client, "doc_abc", deal_content
-        )
+    def test_batch_update_body_has_requests(self, docs_client, deal_content):
+        populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
         call_kwargs = (
             docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
@@ -480,21 +417,15 @@ class TestPopulateDealAnalysis:
         assert len(requests) > 0
         assert "insertText" in requests[0]
 
-    def test_inserted_text_contains_all_sections(
-        self, docs_client, deal_content
-    ):
-        populate_deal_analysis(
-            docs_client, "doc_abc", deal_content
-        )
+    def test_inserted_text_contains_all_sections(self, docs_client, deal_content):
+        populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
         call_kwargs = (
             docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
                 1
             ]
         )
-        inserted = call_kwargs["body"]["requests"][0]["insertText"][
-            "text"
-        ]
+        inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "1. Opportunity Snapshot" in inserted
         assert "2. Problem & Impact" in inserted
         assert "3. Current vs Desired State" in inserted
@@ -503,21 +434,15 @@ class TestPopulateDealAnalysis:
         assert "6. Proof & Next Actions" in inserted
         assert FOOTER_TEXT in inserted
 
-    def test_inserted_text_contains_content_values(
-        self, docs_client, deal_content
-    ):
-        populate_deal_analysis(
-            docs_client, "doc_abc", deal_content
-        )
+    def test_inserted_text_contains_content_values(self, docs_client, deal_content):
+        populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
         call_kwargs = (
             docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
                 1
             ]
         )
-        inserted = call_kwargs["body"]["requests"][0]["insertText"][
-            "text"
-        ]
+        inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Acme Corp" in inserted
         assert "Legacy ERP system" in inserted
         assert "Schedule technical deep-dive" in inserted
@@ -525,36 +450,26 @@ class TestPopulateDealAnalysis:
     def test_missing_info_appears_in_output(
         self, docs_client, deal_content, missing_info
     ):
-        populate_deal_analysis(
-            docs_client, "doc_abc", deal_content, missing_info
-        )
+        populate_deal_analysis(docs_client, "doc_abc", deal_content, missing_info)
 
         call_kwargs = (
             docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
                 1
             ]
         )
-        inserted = call_kwargs["body"]["requests"][0]["insertText"][
-            "text"
-        ]
+        inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Missing Information" in inserted
         assert "Budget range" in inserted
 
-    def test_no_missing_info_omits_warning(
-        self, docs_client, deal_content
-    ):
-        populate_deal_analysis(
-            docs_client, "doc_abc", deal_content
-        )
+    def test_no_missing_info_omits_warning(self, docs_client, deal_content):
+        populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
         call_kwargs = (
             docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
                 1
             ]
         )
-        inserted = call_kwargs["body"]["requests"][0]["insertText"][
-            "text"
-        ]
+        inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Missing Information" not in inserted
 
     def test_empty_content_uses_unknown_defaults(self, docs_client):
@@ -565,17 +480,11 @@ class TestPopulateDealAnalysis:
                 1
             ]
         )
-        inserted = call_kwargs["body"]["requests"][0]["insertText"][
-            "text"
-        ]
+        inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Unknown" in inserted
 
-    def test_requests_include_formatting(
-        self, docs_client, deal_content
-    ):
-        populate_deal_analysis(
-            docs_client, "doc_abc", deal_content
-        )
+    def test_requests_include_formatting(self, docs_client, deal_content):
+        populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
         call_kwargs = (
             docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
@@ -583,11 +492,7 @@ class TestPopulateDealAnalysis:
             ]
         )
         requests = call_kwargs["body"]["requests"]
-        has_paragraph = any(
-            "updateParagraphStyle" in r for r in requests
-        )
-        has_text_style = any(
-            "updateTextStyle" in r for r in requests
-        )
+        has_paragraph = any("updateParagraphStyle" in r for r in requests)
+        has_text_style = any("updateTextStyle" in r for r in requests)
         assert has_paragraph
         assert has_text_style

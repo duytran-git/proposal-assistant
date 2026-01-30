@@ -111,9 +111,7 @@ def share_with_channel_members(
             shared_emails.append(email)
 
         except Exception as e:
-            logger.warning(
-                "Failed to share with user %s: %s", member_id, e
-            )
+            logger.warning("Failed to share with user %s: %s", member_id, e)
             continue
 
     logger.info(

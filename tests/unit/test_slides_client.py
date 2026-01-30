@@ -1,6 +1,5 @@
 """Unit tests for Google Slides client and Proposal Deck population."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,7 +12,6 @@ from proposal_assistant.slides.proposal_deck import (
     _PLACEHOLDER_FIELDS,
     populate_proposal_deck,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────
 
@@ -120,9 +118,7 @@ class TestSlidesClientInit:
 
     def test_creates_credentials_with_correct_scopes(self, mock_config):
         with (
-            patch(
-                "proposal_assistant.slides.client.Credentials"
-            ) as mock_creds,
+            patch("proposal_assistant.slides.client.Credentials") as mock_creds,
             patch("proposal_assistant.slides.client.build"),
         ):
             mock_creds.from_service_account_info.return_value = MagicMock()
@@ -138,33 +134,25 @@ class TestSlidesClientInit:
 
     def test_builds_slides_v1_service(self, mock_config):
         with (
-            patch(
-                "proposal_assistant.slides.client.Credentials"
-            ) as mock_creds,
+            patch("proposal_assistant.slides.client.Credentials") as mock_creds,
             patch("proposal_assistant.slides.client.build") as mock_build,
         ):
             mock_creds.from_service_account_info.return_value = MagicMock()
             SlidesClient(mock_config)
 
-            calls = [
-                c for c in mock_build.call_args_list if c[0][0] == "slides"
-            ]
+            calls = [c for c in mock_build.call_args_list if c[0][0] == "slides"]
             assert len(calls) == 1
             assert calls[0][0] == ("slides", "v1")
 
     def test_builds_drive_v3_service(self, mock_config):
         with (
-            patch(
-                "proposal_assistant.slides.client.Credentials"
-            ) as mock_creds,
+            patch("proposal_assistant.slides.client.Credentials") as mock_creds,
             patch("proposal_assistant.slides.client.build") as mock_build,
         ):
             mock_creds.from_service_account_info.return_value = MagicMock()
             SlidesClient(mock_config)
 
-            calls = [
-                c for c in mock_build.call_args_list if c[0][0] == "drive"
-            ]
+            calls = [c for c in mock_build.call_args_list if c[0][0] == "drive"]
             assert len(calls) == 1
             assert calls[0][0] == ("drive", "v3")
 
@@ -307,35 +295,35 @@ class TestPopulateProposalDeck:
     ):
         # Mock presentation structure
         slides_client._slides_service.presentations().get().execute.return_value = {
-            "slides": [
-                self._make_slide_page(i) for i in range(1, 13)
-            ]
+            "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
-
-        populate_proposal_deck(
-            slides_client, "pres_123", sample_slide_content
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
+            {}
         )
 
+        populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
+
         slides_client._slides_service.presentations().batchUpdate.assert_called()
-        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
+        call_kwargs = (
+            slides_client._slides_service.presentations().batchUpdate.call_args
+        )
         assert call_kwargs[1]["presentationId"] == "pres_123"
 
     def test_generates_requests_for_all_slides(
         self, slides_client, sample_slide_content
     ):
         slides_client._slides_service.presentations().get().execute.return_value = {
-            "slides": [
-                self._make_slide_page(i) for i in range(1, 13)
-            ]
+            "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
-
-        populate_proposal_deck(
-            slides_client, "pres_123", sample_slide_content
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
+            {}
         )
 
-        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
+        populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
+
+        call_kwargs = (
+            slides_client._slides_service.presentations().batchUpdate.call_args
+        )
         requests = call_kwargs[1]["body"]["requests"]
 
         # Should have requests for text deletion and insertion for each placeholder,
@@ -344,11 +332,11 @@ class TestPopulateProposalDeck:
 
     def test_handles_missing_content_gracefully(self, slides_client):
         slides_client._slides_service.presentations().get().execute.return_value = {
-            "slides": [
-                self._make_slide_page(i) for i in range(1, 13)
-            ]
+            "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
+            {}
+        )
 
         # Provide only partial content
         partial_content = {
@@ -363,22 +351,23 @@ class TestPopulateProposalDeck:
 
     def test_adds_footer_to_slides(self, slides_client, sample_slide_content):
         slides_client._slides_service.presentations().get().execute.return_value = {
-            "slides": [
-                self._make_slide_page(i) for i in range(1, 13)
-            ]
+            "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
-
-        populate_proposal_deck(
-            slides_client, "pres_123", sample_slide_content
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
+            {}
         )
 
-        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
+        populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
+
+        call_kwargs = (
+            slides_client._slides_service.presentations().batchUpdate.call_args
+        )
         requests = call_kwargs[1]["body"]["requests"]
 
         # Find footer text insertions
         footer_inserts = [
-            r for r in requests
+            r
+            for r in requests
             if "insertText" in r and r["insertText"].get("text") == FOOTER_TEXT
         ]
         assert len(footer_inserts) == 12  # Footer for each slide
@@ -389,19 +378,22 @@ class TestPopulateProposalDeck:
         slides_client._slides_service.presentations().get().execute.return_value = {
             "slides": [self._make_slide_page(1)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
-
-        populate_proposal_deck(
-            slides_client, "pres_123", sample_slide_content
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
+            {}
         )
 
-        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
+        populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
+
+        call_kwargs = (
+            slides_client._slides_service.presentations().batchUpdate.call_args
+        )
         requests = call_kwargs[1]["body"]["requests"]
 
         # For each placeholder, deleteText should come before insertText
         delete_count = sum(1 for r in requests if "deleteText" in r)
         insert_content = sum(
-            1 for r in requests
+            1
+            for r in requests
             if "insertText" in r and r["insertText"].get("text") != FOOTER_TEXT
         )
 
@@ -416,13 +408,15 @@ class TestPopulateProposalDeck:
 
         page_elements = []
         for field_name, (ph_type, ph_index) in field_map.items():
-            page_elements.append({
-                "objectId": f"slide_{slide_num}_{field_name}",
-                "placeholder": {
-                    "type": ph_type,
-                    "index": ph_index,
-                },
-            })
+            page_elements.append(
+                {
+                    "objectId": f"slide_{slide_num}_{field_name}",
+                    "placeholder": {
+                        "type": ph_type,
+                        "index": ph_index,
+                    },
+                }
+            )
 
         return {
             "objectId": f"slide_page_{slide_num}",

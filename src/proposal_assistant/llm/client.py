@@ -14,7 +14,10 @@ from proposal_assistant.llm.context_builder import (
     chunk_text,
     count_tokens,
 )
-from proposal_assistant.llm.prompts.deal_analysis import SYSTEM_PROMPT, format_user_prompt
+from proposal_assistant.llm.prompts.deal_analysis import (
+    SYSTEM_PROMPT,
+    format_user_prompt,
+)
 from proposal_assistant.llm.prompts.proposal_deck import (
     SYSTEM_PROMPT as PROPOSAL_DECK_SYSTEM_PROMPT,
     format_user_prompt as format_proposal_deck_prompt,
@@ -22,9 +25,11 @@ from proposal_assistant.llm.prompts.proposal_deck import (
 
 # Optional imports for cloud providers
 try:
-    import anthropic
+    import anthropic  # type: ignore[import-untyped]
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
+    anthropic = None  # type: ignore[assignment]
     ANTHROPIC_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -106,12 +111,16 @@ class LLMClient:
             self._cloud_model = config.openai_model
             logger.info("Cloud fallback configured: OpenAI (%s)", config.openai_model)
         elif config.cloud_provider == "anthropic" and config.anthropic_api_key:
-            if not ANTHROPIC_AVAILABLE:
+            if not ANTHROPIC_AVAILABLE or anthropic is None:
                 logger.warning("Anthropic configured but SDK not installed")
             else:
-                self._cloud_client = anthropic.Anthropic(api_key=config.anthropic_api_key)
+                self._cloud_client = anthropic.Anthropic(
+                    api_key=config.anthropic_api_key
+                )
                 self._cloud_model = config.anthropic_model
-                logger.info("Cloud fallback configured: Anthropic (%s)", config.anthropic_model)
+                logger.info(
+                    "Cloud fallback configured: Anthropic (%s)", config.anthropic_model
+                )
 
     @property
     def cloud_available(self) -> bool:
@@ -257,7 +266,10 @@ class LLMClient:
 
         messages = [
             {"role": "system", "content": PROPOSAL_DECK_SYSTEM_PROMPT},
-            {"role": "user", "content": format_proposal_deck_prompt(deal_analysis_text)},
+            {
+                "role": "user",
+                "content": format_proposal_deck_prompt(deal_analysis_text),
+            },
         ]
 
         raw = self.generate(messages, use_cloud=use_cloud)
@@ -330,7 +342,10 @@ class LLMClient:
 
         messages = [
             {"role": "system", "content": SUMMARIZE_CHUNK_SYSTEM_PROMPT},
-            {"role": "user", "content": SUMMARIZE_CHUNK_USER_PROMPT.format(chunk=chunk)},
+            {
+                "role": "user",
+                "content": SUMMARIZE_CHUNK_USER_PROMPT.format(chunk=chunk),
+            },
         ]
 
         summary = self.generate(messages, temperature=0.2, use_cloud=use_cloud)
@@ -649,6 +664,8 @@ class LLMClient:
         Returns:
             The response content text.
         """
+        assert self._cloud_client is not None, "Cloud client not initialized"
+        assert self._cloud_model is not None, "Cloud model not configured"
         response = self._cloud_client.chat.completions.create(
             model=self._cloud_model,
             messages=messages,  # type: ignore[arg-type]
@@ -680,12 +697,16 @@ class LLMClient:
             if msg["role"] == "system":
                 system_content = msg["content"]
             else:
-                anthropic_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"],
-                })
+                anthropic_messages.append(
+                    {
+                        "role": msg["role"],
+                        "content": msg["content"],
+                    }
+                )
 
-        response = self._cloud_client.messages.create(
+        assert self._cloud_client is not None, "Cloud client not initialized"
+        assert self._cloud_model is not None, "Cloud model not configured"
+        response = self._cloud_client.messages.create(  # type: ignore[union-attr]
             model=self._cloud_model,
             max_tokens=8192,
             system=system_content,

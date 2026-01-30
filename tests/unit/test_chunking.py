@@ -87,9 +87,9 @@ class TestChunkingLongTranscript:
         margin = 200
         for i, chunk in enumerate(chunks):
             chunk_tokens = count_tokens(chunk)
-            assert chunk_tokens <= max_tokens + margin, (
-                f"Chunk {i} has {chunk_tokens} tokens, exceeds {max_tokens}+{margin}"
-            )
+            assert (
+                chunk_tokens <= max_tokens + margin
+            ), f"Chunk {i} has {chunk_tokens} tokens, exceeds {max_tokens}+{margin}"
 
     def test_chunk_count_reasonable(self, long_transcript):
         """Number of chunks is reasonable for the content size."""
@@ -101,9 +101,9 @@ class TestChunkingLongTranscript:
         expected_min = total_tokens // max_tokens
         expected_max = (total_tokens // max_tokens) + 3  # Allow some overhead
 
-        assert expected_min <= len(chunks) <= expected_max * 2, (
-            f"Got {len(chunks)} chunks, expected between {expected_min} and {expected_max}"
-        )
+        assert (
+            expected_min <= len(chunks) <= expected_max * 2
+        ), f"Got {len(chunks)} chunks, expected between {expected_min} and {expected_max}"
 
     def test_content_preserved_after_chunking(self, long_transcript):
         """Key content from original transcript exists in chunks."""
@@ -183,7 +183,9 @@ class TestSummaryCombination:
         # Summarized result should fit within budget
         assert result.estimated_tokens <= builder.MAX_TRANSCRIPT_TOKENS + 5000
 
-    def test_original_token_count_preserved_in_result(self, long_transcript, llm_client):
+    def test_original_token_count_preserved_in_result(
+        self, long_transcript, llm_client
+    ):
         """Result includes original transcript token count."""
         create = llm_client._mock_openai.chat.completions.create
 
@@ -287,9 +289,9 @@ class TestLLMClientLongTranscript:
 
         # Result should be significantly smaller
         reduction_percent = (1 - result_tokens / original_tokens) * 100
-        assert reduction_percent > 50, (
-            f"Only {reduction_percent:.1f}% reduction, expected >50%"
-        )
+        assert (
+            reduction_percent > 50
+        ), f"Only {reduction_percent:.1f}% reduction, expected >50%"
 
 
 class TestStatusCallbacks:
@@ -313,8 +315,10 @@ class TestStatusCallbacks:
         )
 
         assert len(status_messages) > 0
-        assert any("exceeded" in msg.lower() or "summar" in msg.lower()
-                   for msg in status_messages)
+        assert any(
+            "exceeded" in msg.lower() or "summar" in msg.lower()
+            for msg in status_messages
+        )
 
     def test_progress_updates_for_each_chunk(self, long_transcript):
         """on_status receives progress updates for multi-chunk processing."""

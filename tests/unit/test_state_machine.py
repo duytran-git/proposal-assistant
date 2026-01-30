@@ -19,12 +19,24 @@ class TestTransitionsDict:
         expected = [
             (State.IDLE, Event.ANALYSE_REQUESTED, State.GENERATING_DEAL_ANALYSIS),
             (State.IDLE, Event.INPUTS_MISSING, State.WAITING_FOR_INPUTS),
-            (State.GENERATING_DEAL_ANALYSIS, Event.DEAL_ANALYSIS_CREATED, State.WAITING_FOR_APPROVAL),
+            (
+                State.GENERATING_DEAL_ANALYSIS,
+                Event.DEAL_ANALYSIS_CREATED,
+                State.WAITING_FOR_APPROVAL,
+            ),
             (State.GENERATING_DEAL_ANALYSIS, Event.FAILED, State.ERROR),
             (State.WAITING_FOR_APPROVAL, Event.APPROVED, State.GENERATING_DECK),
             (State.WAITING_FOR_APPROVAL, Event.REJECTED, State.DONE),
-            (State.WAITING_FOR_APPROVAL, Event.UPDATED_DEAL_ANALYSIS_PROVIDED, State.GENERATING_DECK),
-            (State.WAITING_FOR_APPROVAL, Event.REGENERATE_REQUESTED, State.GENERATING_DEAL_ANALYSIS),
+            (
+                State.WAITING_FOR_APPROVAL,
+                Event.UPDATED_DEAL_ANALYSIS_PROVIDED,
+                State.GENERATING_DECK,
+            ),
+            (
+                State.WAITING_FOR_APPROVAL,
+                Event.REGENERATE_REQUESTED,
+                State.GENERATING_DEAL_ANALYSIS,
+            ),
             (State.GENERATING_DECK, Event.DECK_CREATED, State.DONE),
             (State.GENERATING_DECK, Event.FAILED, State.ERROR),
             (State.ERROR, Event.ANALYSE_REQUESTED, State.GENERATING_DEAL_ANALYSIS),
@@ -278,7 +290,9 @@ class TestApprovalGate:
 
         # Cannot skip straight to deck
         assert not machine.can_transition(State.IDLE, Event.APPROVED)
-        assert not machine.can_transition(State.GENERATING_DEAL_ANALYSIS, Event.APPROVED)
+        assert not machine.can_transition(
+            State.GENERATING_DEAL_ANALYSIS, Event.APPROVED
+        )
 
         # Must go through approval
         assert machine.can_transition(State.WAITING_FOR_APPROVAL, Event.APPROVED)
@@ -353,6 +367,7 @@ class TestStateMachineWithStorage:
     def storage(self):
         """Create mock storage."""
         from unittest.mock import Mock
+
         return Mock()
 
     @pytest.fixture
@@ -362,6 +377,7 @@ class TestStateMachineWithStorage:
     def test_loads_from_storage(self, machine, storage):
         """get_state loads existing state from storage."""
         from proposal_assistant.state import ThreadState
+
         existing = ThreadState(
             thread_ts="123",
             channel_id="C001",
@@ -398,6 +414,7 @@ class TestStateMachineWithStorage:
     def test_caches_loaded_state(self, machine, storage):
         """Loaded state is cached, storage not called twice."""
         from proposal_assistant.state import ThreadState
+
         existing = ThreadState(thread_ts="123", channel_id="C001", user_id="U001")
         storage.load.return_value = existing
 

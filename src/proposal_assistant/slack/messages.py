@@ -56,7 +56,10 @@ def format_deal_analysis_complete(
     blocks: list[dict[str, Any]] = [
         {
             "type": "section",
-            "text": {"type": "mrkdwn", "text": ":white_check_mark: *Deal Analysis created*"},
+            "text": {
+                "type": "mrkdwn",
+                "text": ":white_check_mark: *Deal Analysis created*",
+            },
         },
         {
             "type": "section",

@@ -31,7 +31,9 @@ class TestV1ExistsBeforeRegenerate:
             deal_analysis_link="https://docs.google.com/document/d/doc_v1_id",
             deal_analysis_content={"company": "Acme Corp"},
             deal_analysis_version=1,
-            input_transcript_content=["# Meeting transcript\n\nDiscussion about project."],
+            input_transcript_content=[
+                "# Meeting transcript\n\nDiscussion about project."
+            ],
             state=State.WAITING_FOR_APPROVAL,
         )
 
@@ -118,7 +120,10 @@ class TestRegenerateCreatesV2:
             LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
-            mock_docs.create_document.return_value = ("doc_v2_id", "https://docs.google.com/document/d/doc_v2_id")
+            mock_docs.create_document.return_value = (
+                "doc_v2_id",
+                "https://docs.google.com/document/d/doc_v2_id",
+            )
             DocsClient.return_value = mock_docs
 
             handle_regenerate(regenerate_body, mock_say, mock_client)
@@ -347,7 +352,9 @@ class TestRegenerationPreservesOriginalInputs:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = thread_state_with_multiple_transcripts
+            StateMachine.return_value.get_state.return_value = (
+                thread_state_with_multiple_transcripts
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {

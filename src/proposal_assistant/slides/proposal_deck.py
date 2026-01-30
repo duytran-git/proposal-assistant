@@ -101,8 +101,7 @@ def populate_proposal_deck(
         slides._slides_service.presentations()
         .get(
             presentationId=presentation_id,
-            fields="slides(objectId,pageElements("
-            "objectId,placeholder(type,index)))",
+            fields="slides(objectId,pageElements(" "objectId,placeholder(type,index)))",
         )
         .execute()
     )
@@ -124,9 +123,7 @@ def populate_proposal_deck(
         slide_content = content.get(content_key, {})
         layout_name = SLIDE_LAYOUTS[slide_num]
 
-        _add_slide_content_requests(
-            requests, slide_page, slide_content, layout_name
-        )
+        _add_slide_content_requests(requests, slide_page, slide_content, layout_name)
 
     _add_footer_requests(requests, slide_pages)
 

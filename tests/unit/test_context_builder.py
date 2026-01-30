@@ -32,10 +32,12 @@ class TestMergeTranscripts:
 
     def test_multiple_transcripts_adds_markers(self):
         """Multiple transcripts are merged with numbered markers."""
-        result = ContextBuilder._merge_transcripts([
-            "First transcript",
-            "Second transcript",
-        ])
+        result = ContextBuilder._merge_transcripts(
+            [
+                "First transcript",
+                "Second transcript",
+            ]
+        )
         assert "--- Transcript 1 ---" in result
         assert "--- Transcript 2 ---" in result
         assert "First transcript" in result
@@ -43,31 +45,37 @@ class TestMergeTranscripts:
 
     def test_three_transcripts_adds_all_markers(self):
         """Three transcripts get markers 1, 2, 3."""
-        result = ContextBuilder._merge_transcripts([
-            "Transcript A",
-            "Transcript B",
-            "Transcript C",
-        ])
+        result = ContextBuilder._merge_transcripts(
+            [
+                "Transcript A",
+                "Transcript B",
+                "Transcript C",
+            ]
+        )
         assert "--- Transcript 1 ---" in result
         assert "--- Transcript 2 ---" in result
         assert "--- Transcript 3 ---" in result
 
     def test_empty_items_in_list_are_filtered(self):
         """Empty strings in list are filtered out."""
-        result = ContextBuilder._merge_transcripts([
-            "Content",
-            "",
-            "   ",  # whitespace only
-        ])
+        result = ContextBuilder._merge_transcripts(
+            [
+                "Content",
+                "",
+                "   ",  # whitespace only
+            ]
+        )
         # Only one non-empty item, so no markers
         assert result == "Content"
 
     def test_markers_are_on_separate_lines(self):
         """Markers are followed by newlines."""
-        result = ContextBuilder._merge_transcripts([
-            "First",
-            "Second",
-        ])
+        result = ContextBuilder._merge_transcripts(
+            [
+                "First",
+                "Second",
+            ]
+        )
         # Check format: marker, newlines, content
         assert "--- Transcript 1 ---\n\n" in result
         assert "--- Transcript 2 ---\n\n" in result
@@ -95,10 +103,12 @@ class TestBuildContextWithMultipleTranscripts:
     def test_build_context_with_multiple_transcripts(self):
         """build_context merges multiple transcripts with markers."""
         builder = ContextBuilder()
-        result = builder.build_context([
-            "First meeting notes",
-            "Second meeting notes",
-        ])
+        result = builder.build_context(
+            [
+                "First meeting notes",
+                "Second meeting notes",
+            ]
+        )
 
         assert result.transcript_included is True
         assert "--- Transcript 1 ---" in result.context

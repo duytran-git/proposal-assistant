@@ -1,6 +1,6 @@
 """Unit tests for Google Drive permissions utilities."""
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -92,9 +92,7 @@ class TestShareWithChannelMembers:
         self, mock_drive_client, mock_slack_client
     ):
         """Function shares file with users who have email addresses."""
-        mock_slack_client.conversations_members.return_value = {
-            "members": ["U_USER1"]
-        }
+        mock_slack_client.conversations_members.return_value = {"members": ["U_USER1"]}
         mock_slack_client.users_info.return_value = {
             "user": {"profile": {"email": "alice@example.com"}, "is_bot": False}
         }

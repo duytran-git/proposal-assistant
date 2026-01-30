@@ -12,7 +12,7 @@ StatusCallbackFn = Callable[[str], None]  # (message) -> None
 
 # Try to import tiktoken for accurate token counting
 try:
-    import tiktoken
+    import tiktoken  # type: ignore[import-untyped]
 
     _TIKTOKEN_AVAILABLE = True
     _ENCODING = tiktoken.get_encoding("cl100k_base")  # GPT-4/Claude compatible
@@ -198,7 +198,7 @@ def _split_by_words(text: str, max_tokens: int) -> list[str]:
                 current_words = []
                 current_tokens = 0
             # Truncate the word (rare edge case)
-            chunks.append(word[:max_tokens * 4])  # Rough char estimate
+            chunks.append(word[: max_tokens * 4])  # Rough char estimate
             continue
 
         separator_tokens = 1 if current_words else 0
@@ -365,12 +365,13 @@ class ContextBuilder:
         context = "\n\n---\n\n".join(sections)
 
         estimated_tokens = self._estimate_tokens(context)
-        status = "summarized" if transcript_summarized else (
-            "truncated" if transcript_truncated else "full"
+        status = (
+            "summarized"
+            if transcript_summarized
+            else ("truncated" if transcript_truncated else "full")
         )
         logger.info(
-            "Context built: ~%d tokens "
-            "(transcript=%s, refs=%d/%d, web=%d/%d)",
+            "Context built: ~%d tokens " "(transcript=%s, refs=%d/%d, web=%d/%d)",
             estimated_tokens,
             status,
             refs_included,
@@ -414,7 +415,9 @@ class ContextBuilder:
         summaries: list[str] = []
         for i, chunk in enumerate(chunks, start=1):
             chunk_tokens = count_tokens(chunk)
-            logger.debug("Summarizing chunk %d/%d (%d tokens)", i, len(chunks), chunk_tokens)
+            logger.debug(
+                "Summarizing chunk %d/%d (%d tokens)", i, len(chunks), chunk_tokens
+            )
 
             if on_status and len(chunks) > 1:
                 on_status(f"Summarizing part {i}/{len(chunks)}...")
@@ -474,9 +477,7 @@ class ContextBuilder:
 
         return "\n\n".join(parts)
 
-    def _truncate_to_budget(
-        self, text: str, max_chars: int
-    ) -> tuple[str, bool]:
+    def _truncate_to_budget(self, text: str, max_chars: int) -> tuple[str, bool]:
         """Truncate text to fit within character budget at line boundary.
 
         Finds the last newline within the budget and truncates there.

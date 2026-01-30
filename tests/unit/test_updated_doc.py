@@ -4,7 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from proposal_assistant.slack.handlers import handle_approval, handle_updated_deal_analysis
+from proposal_assistant.slack.handlers import (
+    handle_approval,
+    handle_updated_deal_analysis,
+)
 from proposal_assistant.state.models import State, ThreadState
 
 
@@ -68,7 +71,9 @@ Core problem: Legacy systems causing delays
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
@@ -133,14 +138,14 @@ Core problem: Legacy systems causing delays
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
             patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
-            patch(
-                "proposal_assistant.utils.doc_parser.parse_docx"
-            ) as mock_parse_docx,
+            patch("proposal_assistant.utils.doc_parser.parse_docx") as mock_parse_docx,
         ):
             get_config.return_value = mock_config
             StateMachine.return_value.get_state.return_value = waiting_state
@@ -206,19 +211,23 @@ Business challenge: Data silos
             deal_analysis_content={},
         )
 
-        json_content = json.dumps({
-            "opportunity_snapshot": {"company": "JSON Corp", "industry": "Finance"},
-            "problem_impact": {"core_problem": "Manual reporting"},
-            "current_desired_state": "Automated dashboards",
-            "buying_dynamics": "CFO leads decision",
-            "renessai_fit": "Full automation suite",
-            "proof_next_actions": "Demo next week",
-        }).encode("utf-8")
+        json_content = json.dumps(
+            {
+                "opportunity_snapshot": {"company": "JSON Corp", "industry": "Finance"},
+                "problem_impact": {"core_problem": "Manual reporting"},
+                "current_desired_state": "Automated dashboards",
+                "buying_dynamics": "CFO leads decision",
+                "renessai_fit": "Full automation suite",
+                "proof_next_actions": "Demo next week",
+            }
+        ).encode("utf-8")
 
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
@@ -349,7 +358,9 @@ Company: Partial Corp
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,

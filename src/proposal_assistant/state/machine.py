@@ -5,17 +5,25 @@ from typing import Any, Optional, Protocol
 
 from proposal_assistant.state.models import Event, State, ThreadState
 
-
 # Valid state transitions: (current_state, event) -> next_state
 TRANSITIONS: dict[tuple[State, Event], State] = {
     (State.IDLE, Event.ANALYSE_REQUESTED): State.GENERATING_DEAL_ANALYSIS,
     (State.IDLE, Event.INPUTS_MISSING): State.WAITING_FOR_INPUTS,
-    (State.GENERATING_DEAL_ANALYSIS, Event.DEAL_ANALYSIS_CREATED): State.WAITING_FOR_APPROVAL,
+    (
+        State.GENERATING_DEAL_ANALYSIS,
+        Event.DEAL_ANALYSIS_CREATED,
+    ): State.WAITING_FOR_APPROVAL,
     (State.GENERATING_DEAL_ANALYSIS, Event.FAILED): State.ERROR,
     (State.WAITING_FOR_APPROVAL, Event.APPROVED): State.GENERATING_DECK,
     (State.WAITING_FOR_APPROVAL, Event.REJECTED): State.DONE,
-    (State.WAITING_FOR_APPROVAL, Event.UPDATED_DEAL_ANALYSIS_PROVIDED): State.GENERATING_DECK,
-    (State.WAITING_FOR_APPROVAL, Event.REGENERATE_REQUESTED): State.GENERATING_DEAL_ANALYSIS,
+    (
+        State.WAITING_FOR_APPROVAL,
+        Event.UPDATED_DEAL_ANALYSIS_PROVIDED,
+    ): State.GENERATING_DECK,
+    (
+        State.WAITING_FOR_APPROVAL,
+        Event.REGENERATE_REQUESTED,
+    ): State.GENERATING_DEAL_ANALYSIS,
     (State.GENERATING_DECK, Event.DECK_CREATED): State.DONE,
     (State.GENERATING_DECK, Event.FAILED): State.ERROR,
     (State.ERROR, Event.ANALYSE_REQUESTED): State.GENERATING_DEAL_ANALYSIS,
@@ -58,7 +66,9 @@ class StateMachine:
         """Create unique key for thread state lookup."""
         return f"{channel_id}_{thread_ts}"
 
-    def get_state(self, thread_ts: str, channel_id: str, user_id: str = "") -> ThreadState:
+    def get_state(
+        self, thread_ts: str, channel_id: str, user_id: str = ""
+    ) -> ThreadState:
         """Get existing thread state or create new one."""
         key = self._make_key(thread_ts, channel_id)
 

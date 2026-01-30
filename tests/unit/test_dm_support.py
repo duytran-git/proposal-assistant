@@ -1,8 +1,7 @@
 """Unit tests for DM (direct message) support."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from proposal_assistant.drive.permissions import (
     share_file,
@@ -35,9 +34,7 @@ class TestShareWithUserById:
         """Returns None when user has no email in profile."""
         drive = MagicMock()
         slack_client = MagicMock()
-        slack_client.users_info.return_value = {
-            "user": {"profile": {}}
-        }
+        slack_client.users_info.return_value = {"user": {"profile": {}}}
 
         result = share_with_user_by_id(drive, "file123", "U123", slack_client)
 
@@ -115,9 +112,7 @@ class TestShareFile:
         """Channel context shares with all channel members."""
         drive = MagicMock()
         slack_client = MagicMock()
-        slack_client.conversations_members.return_value = {
-            "members": ["U1", "U2"]
-        }
+        slack_client.conversations_members.return_value = {"members": ["U1", "U2"]}
         slack_client.users_info.side_effect = [
             {"user": {"profile": {"email": "user1@example.com"}}},
             {"user": {"profile": {"email": "user2@example.com"}}},
@@ -184,9 +179,7 @@ class TestShareWithChannelMembers:
         """Skips bot users when sharing with channel members."""
         drive = MagicMock()
         slack_client = MagicMock()
-        slack_client.conversations_members.return_value = {
-            "members": ["U1", "B1"]
-        }
+        slack_client.conversations_members.return_value = {"members": ["U1", "B1"]}
         slack_client.users_info.side_effect = [
             {"user": {"profile": {"email": "human@example.com"}, "is_bot": False}},
             {"user": {"profile": {"email": "bot@example.com"}, "is_bot": True}},
@@ -278,9 +271,7 @@ class TestDMFlowIntegration:
         }
 
         # Make conversations_members fail (shouldn't be called for DM)
-        slack_client.conversations_members.side_effect = Exception(
-            "channel_not_found"
-        )
+        slack_client.conversations_members.side_effect = Exception("channel_not_found")
 
         # Should succeed without error
         result = share_file(

@@ -4,7 +4,6 @@ import pytest
 
 from proposal_assistant.config import Config, get_config, _get_required_env
 
-
 # All required env vars for a valid config
 REQUIRED_ENV_VARS = {
     "SLACK_BOT_TOKEN": "xoxb-test",

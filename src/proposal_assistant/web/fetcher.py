@@ -88,7 +88,12 @@ class WebFetcher:
                 sleep_time = self.BACKOFF_SECONDS[attempt]
                 time.sleep(sleep_time)
 
-        logger.error("Failed to fetch %s after %d attempts: %s", url, self.MAX_RETRIES, last_error)
+        logger.error(
+            "Failed to fetch %s after %d attempts: %s",
+            url,
+            self.MAX_RETRIES,
+            last_error,
+        )
         return None
 
     def fetch_multiple(
@@ -112,9 +117,7 @@ class WebFetcher:
         results: dict[str, str | None] = {}
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_url = {
-                executor.submit(self.fetch_url, url): url for url in urls
-            }
+            future_to_url = {executor.submit(self.fetch_url, url): url for url in urls}
 
             for future in as_completed(future_to_url):
                 url = future_to_url[future]

@@ -150,9 +150,7 @@ class TestHandleAnalyseCommand:
         call_kwargs = mock_say.call_args[1]
         assert call_kwargs["text"] == ERROR_MESSAGES["INPUT_MISSING"]
 
-    def test_uses_thread_ts_when_in_thread(
-        self, mock_say, mock_client, base_message
-    ):
+    def test_uses_thread_ts_when_in_thread(self, mock_say, mock_client, base_message):
         """Handler uses thread_ts for replies when message is in a thread."""
         base_message["thread_ts"] = "1706430000.000000"
 
@@ -161,9 +159,7 @@ class TestHandleAnalyseCommand:
         call_kwargs = mock_say.call_args[1]
         assert call_kwargs["thread_ts"] == "1706430000.000000"
 
-    def test_uses_ts_when_not_in_thread(
-        self, mock_say, mock_client, base_message
-    ):
+    def test_uses_ts_when_not_in_thread(self, mock_say, mock_client, base_message):
         """Handler uses message ts for replies when not in a thread."""
         handle_analyse_command(base_message, mock_say, mock_client)
 
@@ -437,9 +433,7 @@ class TestHandleAnalyseCommandMultipleFiles:
         first_call = calls[0]
         assert first_call[1]["input_transcript_file_ids"] == ["F123"]
 
-    def test_only_non_md_files_shows_error(
-        self, mock_say, mock_client, base_message
-    ):
+    def test_only_non_md_files_shows_error(self, mock_say, mock_client, base_message):
         """If no .md files present, shows INPUT_INVALID error."""
         base_message["files"] = [
             {"id": "F123", "name": "image.png", "url_private_download": "https://..."},
@@ -473,7 +467,9 @@ class TestHandleAnalyseCommandMultipleFiles:
 
         handle_analyse_command(base_message, mock_say, mock_client)
 
-        mock_all_dependencies["extract_client_name"].assert_called_with("alpha-meeting.md")
+        mock_all_dependencies["extract_client_name"].assert_called_with(
+            "alpha-meeting.md"
+        )
 
 
 class TestHandleAnalyseCommandErrorPaths:
@@ -540,9 +536,7 @@ class TestHandleAnalyseCommandErrorPaths:
             patch(
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
-            patch(
-                "proposal_assistant.slack.handlers.validate_transcript"
-            ) as validate,
+            patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
         ):
             get_config.return_value = mock_config
 
@@ -584,13 +578,9 @@ class TestHandleAnalyseCommandErrorPaths:
             patch(
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
-            patch(
-                "proposal_assistant.slack.handlers.validate_transcript"
-            ) as validate,
+            patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch(
-                "proposal_assistant.slack.handlers.extract_client_name"
-            ) as extract,
+            patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
@@ -641,13 +631,9 @@ class TestHandleAnalyseCommandErrorPaths:
             patch(
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
-            patch(
-                "proposal_assistant.slack.handlers.validate_transcript"
-            ) as validate,
+            patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch(
-                "proposal_assistant.slack.handlers.extract_client_name"
-            ) as extract,
+            patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
@@ -705,13 +691,9 @@ class TestHandleAnalyseCommandErrorPaths:
             patch(
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
-            patch(
-                "proposal_assistant.slack.handlers.validate_transcript"
-            ) as validate,
+            patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch(
-                "proposal_assistant.slack.handlers.extract_client_name"
-            ) as extract,
+            patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
@@ -958,9 +940,7 @@ class TestHandleApproval:
             user_id="U1234567890",
         )
 
-        with (
-            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-        ):
+        with (patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,):
             StateMachine.return_value.get_state.return_value = missing_state
 
             handle_approval(approval_body, mock_say, mock_client)
@@ -1085,15 +1065,11 @@ class TestHandleApproval:
 class TestHandleRejection:
     """Tests for handle_rejection function."""
 
-    def test_rejection_transitions_to_done(
-        self, mock_say, mock_client, approval_body
-    ):
+    def test_rejection_transitions_to_done(self, mock_say, mock_client, approval_body):
         """Rejection transitions state to DONE."""
         from proposal_assistant.state.models import Event
 
-        with (
-            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-        ):
+        with (patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,):
             handle_rejection(approval_body, mock_say, mock_client)
 
         state_machine = StateMachine.return_value
@@ -1105,9 +1081,7 @@ class TestHandleRejection:
         self, mock_say, mock_client, approval_body
     ):
         """Rejection sends confirmation message."""
-        with (
-            patch("proposal_assistant.slack.handlers.StateMachine"),
-        ):
+        with (patch("proposal_assistant.slack.handlers.StateMachine"),):
             handle_rejection(approval_body, mock_say, mock_client)
 
         mock_say.assert_called_once()
@@ -1118,9 +1092,7 @@ class TestHandleRejection:
         self, mock_say, mock_client, approval_body
     ):
         """Rejection uses correct thread_ts for reply."""
-        with (
-            patch("proposal_assistant.slack.handlers.StateMachine"),
-        ):
+        with (patch("proposal_assistant.slack.handlers.StateMachine"),):
             handle_rejection(approval_body, mock_say, mock_client)
 
         call_kwargs = mock_say.call_args[1]
@@ -1155,7 +1127,12 @@ class TestHandleRegenerate:
         )
 
     def test_regenerate_sends_regenerating_message(
-        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+        self,
+        mock_say,
+        mock_client,
+        regenerate_body,
+        mock_config,
+        mock_thread_state_for_regen,
     ):
         """Regenerate sends regenerating status message with version."""
         with (
@@ -1166,7 +1143,9 @@ class TestHandleRegenerate:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_regen
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -1180,6 +1159,7 @@ class TestHandleRegenerate:
             DocsClient.return_value = mock_docs
 
             from proposal_assistant.slack.handlers import handle_regenerate
+
             handle_regenerate(regenerate_body, mock_say, mock_client)
 
         first_call = mock_say.call_args_list[0][1]
@@ -1187,7 +1167,12 @@ class TestHandleRegenerate:
         assert "v2" in first_call["text"]
 
     def test_regenerate_increments_version(
-        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+        self,
+        mock_say,
+        mock_client,
+        regenerate_body,
+        mock_config,
+        mock_thread_state_for_regen,
     ):
         """Regenerate increments deal_analysis_version in state."""
         from proposal_assistant.state.models import Event
@@ -1200,7 +1185,9 @@ class TestHandleRegenerate:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_regen
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -1214,6 +1201,7 @@ class TestHandleRegenerate:
             DocsClient.return_value = mock_docs
 
             from proposal_assistant.slack.handlers import handle_regenerate
+
             handle_regenerate(regenerate_body, mock_say, mock_client)
 
         state_machine = StateMachine.return_value
@@ -1222,7 +1210,12 @@ class TestHandleRegenerate:
         assert first_call[1]["deal_analysis_version"] == 2
 
     def test_regenerate_calls_llm_with_stored_transcripts(
-        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+        self,
+        mock_say,
+        mock_client,
+        regenerate_body,
+        mock_config,
+        mock_thread_state_for_regen,
     ):
         """Regenerate uses stored input_transcript_content for LLM call."""
         with (
@@ -1233,7 +1226,9 @@ class TestHandleRegenerate:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_regen
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -1247,6 +1242,7 @@ class TestHandleRegenerate:
             DocsClient.return_value = mock_docs
 
             from proposal_assistant.slack.handlers import handle_regenerate
+
             handle_regenerate(regenerate_body, mock_say, mock_client)
 
         mock_llm.generate_deal_analysis.assert_called_once()
@@ -1254,7 +1250,12 @@ class TestHandleRegenerate:
         assert call_kwargs["transcript"] == ["# Meeting transcript content"]
 
     def test_regenerate_creates_versioned_doc(
-        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+        self,
+        mock_say,
+        mock_client,
+        regenerate_body,
+        mock_config,
+        mock_thread_state_for_regen,
     ):
         """Regenerate creates doc with version number in title."""
         with (
@@ -1265,7 +1266,9 @@ class TestHandleRegenerate:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_regen
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -1279,6 +1282,7 @@ class TestHandleRegenerate:
             DocsClient.return_value = mock_docs
 
             from proposal_assistant.slack.handlers import handle_regenerate
+
             handle_regenerate(regenerate_body, mock_say, mock_client)
 
         mock_docs.create_document.assert_called_once()
@@ -1296,12 +1300,11 @@ class TestHandleRegenerate:
             user_id="U1234567890",
         )
 
-        with (
-            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-        ):
+        with (patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,):
             StateMachine.return_value.get_state.return_value = missing_state
 
             from proposal_assistant.slack.handlers import handle_regenerate
+
             handle_regenerate(regenerate_body, mock_say, mock_client)
 
         mock_say.assert_called_once()
@@ -1309,7 +1312,12 @@ class TestHandleRegenerate:
         assert call_kwargs["text"] == ERROR_MESSAGES["STATE_MISSING"]
 
     def test_regenerate_llm_error_shows_error(
-        self, mock_say, mock_client, regenerate_body, mock_config, mock_thread_state_for_regen
+        self,
+        mock_say,
+        mock_client,
+        regenerate_body,
+        mock_config,
+        mock_thread_state_for_regen,
     ):
         """LLM error during regenerate shows error message."""
         from proposal_assistant.llm.client import LLMError
@@ -1321,13 +1329,18 @@ class TestHandleRegenerate:
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_for_regen
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_for_regen
+            )
 
             mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.side_effect = LLMError("LLM failed", "LLM_ERROR")
+            mock_llm.generate_deal_analysis.side_effect = LLMError(
+                "LLM failed", "LLM_ERROR"
+            )
             LLMClient.return_value = mock_llm
 
             from proposal_assistant.slack.handlers import handle_regenerate
+
             handle_regenerate(regenerate_body, mock_say, mock_client)
 
         assert mock_say.call_count == 2
@@ -1427,7 +1440,11 @@ class TestHandleUpdatedDealAnalysis:
             "channel": "C1234567890",
             "user": "U1234567890",
             "files": [
-                {"id": "F123", "name": "image.png", "url_private_download": "https://..."},
+                {
+                    "id": "F123",
+                    "name": "image.png",
+                    "url_private_download": "https://...",
+                },
             ],
         }
 
@@ -1438,13 +1455,20 @@ class TestHandleUpdatedDealAnalysis:
         mock_say.assert_not_called()
 
     def test_processes_md_file_in_waiting_state(
-        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+        self,
+        mock_say,
+        mock_client,
+        file_upload_message,
+        mock_config,
+        mock_thread_state_waiting,
     ):
         """Handler processes .md file when in WAITING_FOR_APPROVAL state."""
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
@@ -1477,7 +1501,12 @@ class TestHandleUpdatedDealAnalysis:
         assert first_call["text"] == "Generating proposal deck..."
 
     def test_triggers_updated_deal_analysis_provided_event(
-        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+        self,
+        mock_say,
+        mock_client,
+        file_upload_message,
+        mock_config,
+        mock_thread_state_waiting,
     ):
         """Handler triggers UPDATED_DEAL_ANALYSIS_PROVIDED event."""
         from proposal_assistant.state.models import Event
@@ -1485,7 +1514,9 @@ class TestHandleUpdatedDealAnalysis:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
@@ -1516,12 +1547,19 @@ class TestHandleUpdatedDealAnalysis:
         assert first_call[1]["event"] == Event.UPDATED_DEAL_ANALYSIS_PROVIDED
 
     def test_download_error_shows_error_message(
-        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+        self,
+        mock_say,
+        mock_client,
+        file_upload_message,
+        mock_config,
+        mock_thread_state_waiting,
     ):
         """Download failure shows INPUT_INVALID error."""
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
         ):
             get_config.return_value = mock_config
@@ -1535,7 +1573,12 @@ class TestHandleUpdatedDealAnalysis:
         assert call_kwargs["text"] == ERROR_MESSAGES["INPUT_INVALID"]
 
     def test_transitions_to_done_after_deck_creation(
-        self, mock_say, mock_client, file_upload_message, mock_config, mock_thread_state_waiting
+        self,
+        mock_say,
+        mock_client,
+        file_upload_message,
+        mock_config,
+        mock_thread_state_waiting,
     ):
         """Handler transitions to DONE after successful deck creation."""
         from proposal_assistant.state.models import Event
@@ -1543,7 +1586,9 @@ class TestHandleUpdatedDealAnalysis:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
@@ -1619,7 +1664,12 @@ class TestHandleCloudConsentYes:
         assert call_kwargs["text"] == ERROR_MESSAGES["STATE_MISSING"]
 
     def test_cloud_consent_yes_sends_analyzing_message(
-        self, mock_say, mock_client, cloud_consent_body, mock_config, mock_thread_state_with_transcript
+        self,
+        mock_say,
+        mock_client,
+        cloud_consent_body,
+        mock_config,
+        mock_thread_state_with_transcript,
     ):
         """Accepting cloud consent sends analyzing message and retries with cloud."""
         with (
@@ -1631,7 +1681,9 @@ class TestHandleCloudConsentYes:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_with_transcript
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_with_transcript
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -1641,7 +1693,10 @@ class TestHandleCloudConsentYes:
             LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
-            mock_docs.create_document.return_value = ("doc_123", "https://docs.google.com/doc")
+            mock_docs.create_document.return_value = (
+                "doc_123",
+                "https://docs.google.com/doc",
+            )
             DocsClient.return_value = mock_docs
 
             handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)
@@ -1652,7 +1707,12 @@ class TestHandleCloudConsentYes:
         assert first_call["thread_ts"] == "1706430000.000000"
 
     def test_cloud_consent_yes_calls_llm_with_use_cloud(
-        self, mock_say, mock_client, cloud_consent_body, mock_config, mock_thread_state_with_transcript
+        self,
+        mock_say,
+        mock_client,
+        cloud_consent_body,
+        mock_config,
+        mock_thread_state_with_transcript,
     ):
         """Cloud consent yes calls LLM with use_cloud=True."""
         with (
@@ -1664,7 +1724,9 @@ class TestHandleCloudConsentYes:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_with_transcript
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_with_transcript
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -1685,7 +1747,12 @@ class TestHandleCloudConsentYes:
         assert call_kwargs["use_cloud"] is True
 
     def test_cloud_consent_yes_transitions_state(
-        self, mock_say, mock_client, cloud_consent_body, mock_config, mock_thread_state_with_transcript
+        self,
+        mock_say,
+        mock_client,
+        cloud_consent_body,
+        mock_config,
+        mock_thread_state_with_transcript,
     ):
         """Cloud consent yes transitions state with cloud_consent_given=True."""
         from proposal_assistant.state.models import Event
@@ -1699,7 +1766,9 @@ class TestHandleCloudConsentYes:
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = mock_thread_state_with_transcript
+            StateMachine.return_value.get_state.return_value = (
+                mock_thread_state_with_transcript
+            )
 
             mock_llm = MagicMock()
             mock_llm.generate_deal_analysis.return_value = {
@@ -1820,3 +1889,577 @@ class TestHandleCloudConsentNo:
 
         call_kwargs = mock_say.call_args[1]
         assert call_kwargs["thread_ts"] == "1706440000.000001"
+
+
+class TestExtractUrls:
+    """Tests for extract_urls function."""
+
+    def test_extracts_single_url(self):
+        """Extracts a single URL from text."""
+        from proposal_assistant.slack.handlers import extract_urls
+
+        text = "Check out https://example.com for details"
+        result = extract_urls(text)
+        assert result == ["https://example.com"]
+
+    def test_extracts_multiple_urls(self):
+        """Extracts multiple URLs from text."""
+        from proposal_assistant.slack.handlers import extract_urls
+
+        text = "Visit https://example.com and https://test.org for info"
+        result = extract_urls(text)
+        assert result == ["https://example.com", "https://test.org"]
+
+    def test_removes_duplicate_urls(self):
+        """Duplicate URLs are removed, keeping order."""
+        from proposal_assistant.slack.handlers import extract_urls
+
+        text = "See https://example.com twice: https://example.com"
+        result = extract_urls(text)
+        assert result == ["https://example.com"]
+
+    def test_returns_empty_list_for_no_urls(self):
+        """Returns empty list when no URLs found."""
+        from proposal_assistant.slack.handlers import extract_urls
+
+        text = "No URLs here at all"
+        result = extract_urls(text)
+        assert result == []
+
+    def test_returns_empty_list_for_empty_text(self):
+        """Returns empty list for empty text."""
+        from proposal_assistant.slack.handlers import extract_urls
+
+        result = extract_urls("")
+        assert result == []
+
+    def test_returns_empty_list_for_none_like_text(self):
+        """Returns empty list for None-like empty text."""
+        from proposal_assistant.slack.handlers import extract_urls
+
+        result = extract_urls(None)  # type: ignore
+        assert result == []
+
+
+class TestHandleAnalyseUnexpectedLLMError:
+    """Tests for unexpected (non-LLMError) exceptions in analyse command."""
+
+    def test_unexpected_exception_during_llm_call(
+        self, mock_say, mock_client, base_message, mock_config
+    ):
+        """Unexpected exception during LLM call shows LLM_ERROR."""
+        from proposal_assistant.state.models import Event
+
+        base_message["files"] = [
+            {
+                "id": "F123",
+                "name": "test.md",
+                "url_private_download": "https://slack.com/files/...",
+            }
+        ]
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
+            patch("proposal_assistant.slack.handlers.DriveClient"),
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"content"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            validate.return_value = ValidationResult(is_valid=True)
+            extract.return_value = "acme"
+            get_folders.return_value = {
+                "client_folder_id": "client_123",
+                "analyse_folder_id": "analyse_123",
+                "proposals_folder_id": "proposals_123",
+            }
+
+            mock_llm = MagicMock()
+            # Raise a non-LLMError exception
+            mock_llm.generate_deal_analysis.side_effect = RuntimeError(
+                "Unexpected error"
+            )
+            LLMClient.return_value = mock_llm
+
+            handle_analyse_command(base_message, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+        state_machine = StateMachine.return_value
+        calls = state_machine.transition.call_args_list
+        assert any(call[1]["event"] == Event.FAILED for call in calls)
+
+
+class TestHandleApprovalUnexpectedLLMError:
+    """Tests for unexpected errors in approval handler."""
+
+    def test_unexpected_llm_exception_shows_error(
+        self, mock_say, mock_client, approval_body, mock_config, mock_thread_state
+    ):
+        """Unexpected exception during LLM deck generation shows LLM_ERROR."""
+        from proposal_assistant.state.models import Event
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.side_effect = RuntimeError(
+                "Unexpected"
+            )
+            LLMClient.return_value = mock_llm
+
+            handle_approval(approval_body, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+        state_machine = StateMachine.return_value
+        calls = state_machine.transition.call_args_list
+        assert any(call[1]["event"] == Event.FAILED for call in calls)
+
+
+class TestHandleUpdatedDealAnalysisErrorPaths:
+    """Additional tests for error paths in handle_updated_deal_analysis."""
+
+    @pytest.fixture
+    def file_upload_msg(self):
+        """Create a Slack message payload with file upload."""
+        return {
+            "ts": "1706440000.000001",
+            "thread_ts": "1706430000.000000",
+            "channel": "C1234567890",
+            "user": "U1234567890",
+            "files": [
+                {
+                    "id": "F123",
+                    "name": "updated-analysis.md",
+                    "url_private_download": "https://slack.com/files/...",
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def thread_state_waiting(self):
+        """Mock thread state in WAITING_FOR_APPROVAL."""
+        return ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            state=State.WAITING_FOR_APPROVAL,
+            client_name="acme",
+            proposals_folder_id="proposals_123",
+            deal_analysis_content={"company": "Acme"},
+        )
+
+    def test_missing_download_url_returns_early(
+        self, mock_say, mock_client, mock_config, thread_state_waiting
+    ):
+        """Missing download URL causes early return without error."""
+        message = {
+            "ts": "1706440000.000001",
+            "thread_ts": "1706430000.000000",
+            "channel": "C1234567890",
+            "user": "U1234567890",
+            "files": [
+                {
+                    "id": "F123",
+                    "name": "test.md",
+                    # No url_private_download
+                }
+            ],
+        }
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = thread_state_waiting
+
+            handle_updated_deal_analysis(message, mock_say, mock_client)
+
+        # Should return early without saying anything
+        mock_say.assert_not_called()
+
+    def test_parse_error_shows_input_invalid(
+        self, mock_say, mock_client, file_upload_msg, mock_config, thread_state_waiting
+    ):
+        """Parse error shows INPUT_INVALID error."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            # parse_deal_analysis is imported inside the function, so patch at source module
+            patch("proposal_assistant.utils.doc_parser.parse_deal_analysis") as parse,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"content"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            parse.side_effect = ValueError("Parse error")
+
+            handle_updated_deal_analysis(file_upload_msg, mock_say, mock_client)
+
+        mock_say.assert_called_once()
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["text"] == ERROR_MESSAGES["INPUT_INVALID"]
+
+    def test_llm_error_shows_error(
+        self, mock_say, mock_client, file_upload_msg, mock_config, thread_state_waiting
+    ):
+        """LLM error during deck generation shows error."""
+        from proposal_assistant.llm.client import LLMError
+        from proposal_assistant.state.models import Event
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"# Content"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.side_effect = LLMError(
+                "LLM failed", "LLM_ERROR"
+            )
+            LLMClient.return_value = mock_llm
+
+            handle_updated_deal_analysis(file_upload_msg, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+        state_machine = StateMachine.return_value
+        calls = state_machine.transition.call_args_list
+        assert any(call[1]["event"] == Event.FAILED for call in calls)
+
+    def test_unexpected_llm_exception_shows_error(
+        self, mock_say, mock_client, file_upload_msg, mock_config, thread_state_waiting
+    ):
+        """Unexpected exception during LLM call shows LLM_ERROR."""
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"# Content"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.side_effect = RuntimeError(
+                "Unexpected"
+            )
+            LLMClient.return_value = mock_llm
+
+            handle_updated_deal_analysis(file_upload_msg, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+    def test_slides_error_shows_error(
+        self, mock_say, mock_client, file_upload_msg, mock_config, thread_state_waiting
+    ):
+        """Slides creation error shows SLIDES_ERROR."""
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"# Content"
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            mock_llm = MagicMock()
+            mock_llm.generate_proposal_deck_content.return_value = {"content": {}}
+            LLMClient.return_value = mock_llm
+
+            mock_slides = MagicMock()
+            mock_slides.duplicate_template.side_effect = Exception("Slides error")
+            SlidesClient.return_value = mock_slides
+
+            handle_updated_deal_analysis(file_upload_msg, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["SLIDES_ERROR"]
+
+
+class TestHandleRegenerateErrorPaths:
+    """Additional tests for error paths in handle_regenerate."""
+
+    @pytest.fixture
+    def regen_body(self):
+        """Sample Slack action body for regenerate button."""
+        return {
+            "channel": {"id": "C1234567890"},
+            "message": {"thread_ts": "1706430000.000000"},
+            "user": {"id": "U1234567890"},
+        }
+
+    @pytest.fixture
+    def thread_state_for_regen(self):
+        """Mock thread state with stored transcripts for regeneration."""
+        return ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            client_name="acme",
+            analyse_folder_id="analyse_123",
+            proposals_folder_id="proposals_123",
+            input_transcript_content=["# Meeting transcript content"],
+            deal_analysis_content={"company": "Acme"},
+            deal_analysis_version=1,
+        )
+
+    def test_unexpected_llm_exception_shows_error(
+        self, mock_say, mock_client, regen_body, mock_config, thread_state_for_regen
+    ):
+        """Unexpected exception during LLM call shows LLM_ERROR."""
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = thread_state_for_regen
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.side_effect = RuntimeError("Unexpected")
+            LLMClient.return_value = mock_llm
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+
+            handle_regenerate(regen_body, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+    def test_docs_error_shows_error(
+        self, mock_say, mock_client, regen_body, mock_config, thread_state_for_regen
+    ):
+        """Docs creation error shows DOCS_ERROR."""
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = thread_state_for_regen
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.side_effect = Exception("Docs error")
+            DocsClient.return_value = mock_docs
+
+            from proposal_assistant.slack.handlers import handle_regenerate
+
+            handle_regenerate(regen_body, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["DOCS_ERROR"]
+
+
+class TestHandleCloudConsentYesErrorPaths:
+    """Tests for error paths in handle_cloud_consent_yes."""
+
+    @pytest.fixture
+    def consent_body(self):
+        """Create a Slack action payload for cloud consent button click."""
+        return {
+            "channel": {"id": "C1234567890"},
+            "message": {"ts": "1706440000.000001", "thread_ts": "1706430000.000000"},
+            "user": {"id": "U1234567890"},
+        }
+
+    @pytest.fixture
+    def thread_state_with_transcript(self):
+        """Mock thread state with stored transcript for cloud retry."""
+        return ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            state=State.ERROR,
+            client_name="acme",
+            analyse_folder_id="analyse_123",
+            proposals_folder_id="proposals_123",
+            input_transcript_content=["# Meeting transcript content"],
+        )
+
+    def test_llm_error_shows_error(
+        self,
+        mock_say,
+        mock_client,
+        consent_body,
+        mock_config,
+        thread_state_with_transcript,
+    ):
+        """LLM error during cloud retry shows error."""
+        from proposal_assistant.llm.client import LLMError
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = (
+                thread_state_with_transcript
+            )
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.side_effect = LLMError(
+                "Cloud failed", "LLM_ERROR"
+            )
+            LLMClient.return_value = mock_llm
+
+            handle_cloud_consent_yes(consent_body, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+    def test_unexpected_llm_exception_shows_error(
+        self,
+        mock_say,
+        mock_client,
+        consent_body,
+        mock_config,
+        thread_state_with_transcript,
+    ):
+        """Unexpected exception during cloud LLM call shows LLM_ERROR."""
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = (
+                thread_state_with_transcript
+            )
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.side_effect = RuntimeError("Unexpected")
+            LLMClient.return_value = mock_llm
+
+            handle_cloud_consent_yes(consent_body, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["LLM_ERROR"]
+
+    def test_docs_error_shows_error(
+        self,
+        mock_say,
+        mock_client,
+        consent_body,
+        mock_config,
+        thread_state_with_transcript,
+    ):
+        """Docs creation error during cloud retry shows DOCS_ERROR."""
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.DriveClient"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = (
+                thread_state_with_transcript
+            )
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.side_effect = Exception("Docs error")
+            DocsClient.return_value = mock_docs
+
+            handle_cloud_consent_yes(consent_body, mock_say, mock_client)
+
+        assert mock_say.call_count == 2
+        last_call = mock_say.call_args_list[-1][1]
+        assert last_call["text"] == ERROR_MESSAGES["DOCS_ERROR"]

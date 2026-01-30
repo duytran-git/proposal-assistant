@@ -4,7 +4,6 @@ import socket
 import urllib.error
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from proposal_assistant.web.fetcher import WebFetcher
 
@@ -197,11 +196,13 @@ class TestFetchMultiple:
         with patch.object(fetcher, "fetch_url") as mock_fetch:
             mock_fetch.side_effect = ["Content 1", "Content 2", "Content 3"]
 
-            result = fetcher.fetch_multiple([
-                "https://example.com/1",
-                "https://example.com/2",
-                "https://example.com/3",
-            ])
+            result = fetcher.fetch_multiple(
+                [
+                    "https://example.com/1",
+                    "https://example.com/2",
+                    "https://example.com/3",
+                ]
+            )
 
         assert len(result) == 3
         urls = [r[0] for r in result]
@@ -248,11 +249,13 @@ class TestFetchMultiple:
             }
             mock_fetch.side_effect = lambda url: content_map[url]
 
-            result = fetcher.fetch_multiple([
-                "https://example.com/1",
-                "https://example.com/2",
-                "https://example.com/3",
-            ])
+            result = fetcher.fetch_multiple(
+                [
+                    "https://example.com/1",
+                    "https://example.com/2",
+                    "https://example.com/3",
+                ]
+            )
 
         assert result[0] == ("https://example.com/1", "Content 1")
         assert result[1] == ("https://example.com/2", None)
@@ -265,10 +268,12 @@ class TestFetchMultiple:
         with patch.object(fetcher, "fetch_url") as mock_fetch:
             mock_fetch.side_effect = [RuntimeError("Unexpected"), "Content 2"]
 
-            result = fetcher.fetch_multiple([
-                "https://example.com/1",
-                "https://example.com/2",
-            ])
+            result = fetcher.fetch_multiple(
+                [
+                    "https://example.com/1",
+                    "https://example.com/2",
+                ]
+            )
 
         # First URL should have None due to exception
         result_dict = dict(result)

@@ -7,13 +7,12 @@ All external APIs (Slack, Google Drive, Google Docs, LLM) are mocked.
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from proposal_assistant.slack.handlers import handle_analyse_command
-from proposal_assistant.state.models import Event, State
-
+from proposal_assistant.state.models import Event
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
@@ -94,15 +93,21 @@ class TestFullAnalyseFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
-            patch("proposal_assistant.slack.handlers.DriveClient") as DriveClient,
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch("proposal_assistant.slack.handlers.DriveClient"),
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
-            patch("proposal_assistant.slack.handlers.populate_deal_analysis") as populate,
+            patch(
+                "proposal_assistant.slack.handlers.populate_deal_analysis"
+            ) as populate,
         ):
             # Configure get_config
             get_config.return_value = mock_config
@@ -116,6 +121,7 @@ class TestFullAnalyseFlow:
 
             # Mock validation (success)
             from proposal_assistant.utils.validation import ValidationResult
+
             validate.return_value = ValidationResult(is_valid=True)
 
             # Track state transitions
@@ -159,7 +165,9 @@ class TestFullAnalyseFlow:
             handle_analyse_command(slack_message_with_file, mock_say, mock_client)
 
             # Verify state transitions
-            assert len(state_transitions) == 2, f"Expected 2 state transitions, got {len(state_transitions)}"
+            assert (
+                len(state_transitions) == 2
+            ), f"Expected 2 state transitions, got {len(state_transitions)}"
 
             # First transition: ANALYSE_REQUESTED
             first_transition = state_transitions[0]
@@ -178,8 +186,13 @@ class TestFullAnalyseFlow:
             assert second_transition["proposals_folder_id"] == "folder_proposals_123"
             assert second_transition["deal_analysis_doc_id"] == doc_id
             assert second_transition["deal_analysis_link"] == doc_link
-            assert second_transition["deal_analysis_content"] == llm_response["deal_analysis"]
-            assert second_transition["missing_info_items"] == llm_response["missing_info"]
+            assert (
+                second_transition["deal_analysis_content"]
+                == llm_response["deal_analysis"]
+            )
+            assert (
+                second_transition["missing_info_items"] == llm_response["missing_info"]
+            )
 
             # Verify messages sent
             assert mock_say.call_count == 2
@@ -240,12 +253,16 @@ class TestFullAnalyseFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine"),
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
@@ -259,6 +276,7 @@ class TestFullAnalyseFlow:
             urlopen.return_value = mock_response
 
             from proposal_assistant.utils.validation import ValidationResult
+
             validate.return_value = ValidationResult(is_valid=True)
             extract.return_value = "acme-corp"
             get_folders.return_value = {
@@ -309,12 +327,16 @@ class TestFullAnalyseFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine"),
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
@@ -328,6 +350,7 @@ class TestFullAnalyseFlow:
             urlopen.return_value = mock_response
 
             from proposal_assistant.utils.validation import ValidationResult
+
             validate.return_value = ValidationResult(is_valid=True)
             extract.return_value = "acme-corp"
             get_folders.return_value = {
@@ -374,12 +397,16 @@ class TestFullFlowErrorHandling:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
         ):
             get_config.return_value = mock_config
@@ -391,6 +418,7 @@ class TestFullFlowErrorHandling:
             urlopen.return_value = mock_response
 
             from proposal_assistant.utils.validation import ValidationResult
+
             validate.return_value = ValidationResult(is_valid=True)
 
             mock_state_machine = MagicMock()
@@ -441,12 +469,16 @@ class TestFullFlowErrorHandling:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
         ):
             get_config.return_value = mock_config
 
@@ -457,6 +489,7 @@ class TestFullFlowErrorHandling:
             urlopen.return_value = mock_response
 
             from proposal_assistant.utils.validation import ValidationResult
+
             validate.return_value = ValidationResult(is_valid=True)
 
             mock_state_machine = MagicMock()
@@ -498,12 +531,16 @@ class TestFullFlowErrorHandling:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
         ):
@@ -516,6 +553,7 @@ class TestFullFlowErrorHandling:
             urlopen.return_value = mock_response
 
             from proposal_assistant.utils.validation import ValidationResult
+
             validate.return_value = ValidationResult(is_valid=True)
 
             mock_state_machine = MagicMock()
@@ -575,12 +613,16 @@ class TestFullFlowStateVerification:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch(
+                "proposal_assistant.slack.handlers.urllib.request.urlopen"
+            ) as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch(
+                "proposal_assistant.slack.handlers.get_or_create_client_folder"
+            ) as get_folders,
             patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
@@ -594,6 +636,7 @@ class TestFullFlowStateVerification:
             urlopen.return_value = mock_response
 
             from proposal_assistant.utils.validation import ValidationResult
+
             validate.return_value = ValidationResult(is_valid=True)
 
             mock_state_machine = MagicMock()
@@ -636,7 +679,10 @@ class TestFullFlowStateVerification:
             assert captured_state_data["proposals_folder_id"] == "folder_proposals_xyz"
 
             assert "deal_analysis_content" in captured_state_data
-            assert captured_state_data["deal_analysis_content"] == llm_response["deal_analysis"]
+            assert (
+                captured_state_data["deal_analysis_content"]
+                == llm_response["deal_analysis"]
+            )
 
             assert "deal_analysis_doc_id" in captured_state_data
             assert captured_state_data["deal_analysis_doc_id"] == "doc_xyz"

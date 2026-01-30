@@ -1,7 +1,6 @@
 """Unit tests for Google Drive client module."""
 
-import io
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,7 +11,9 @@ from proposal_assistant.drive.client import SCOPES, DriveClient
 def mock_config():
     """Create a mock Config with Google credentials."""
     config = MagicMock()
-    config.google_service_account_json = '{"type": "service_account", "project_id": "test"}'
+    config.google_service_account_json = (
+        '{"type": "service_account", "project_id": "test"}'
+    )
     config.google_drive_root_folder_id = "root_folder_123"
     return config
 
@@ -46,7 +47,10 @@ class TestDriveClientInit:
 
             mock_creds.from_service_account_info.assert_called_once()
             call_kwargs = mock_creds.from_service_account_info.call_args
-            assert call_kwargs[0][0] == {"type": "service_account", "project_id": "test"}
+            assert call_kwargs[0][0] == {
+                "type": "service_account",
+                "project_id": "test",
+            }
             assert call_kwargs[1]["scopes"] == SCOPES
 
     def test_builds_drive_v3_service(self, mock_config):
@@ -58,7 +62,9 @@ class TestDriveClientInit:
             DriveClient(mock_config)
 
             mock_build.assert_called_once_with(
-                "drive", "v3", credentials=mock_creds.from_service_account_info.return_value
+                "drive",
+                "v3",
+                credentials=mock_creds.from_service_account_info.return_value,
             )
 
     def test_stores_root_folder_id(self, drive_client):
@@ -183,5 +189,3 @@ class TestShareFile:
 
         call_kwargs = mock_perms.create.call_args[1]
         assert call_kwargs["body"]["role"] == "reader"
-
-

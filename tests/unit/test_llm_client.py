@@ -182,7 +182,9 @@ class TestRetryLogic:
 
     def test_retries_on_api_status_error(self, llm_client):
         create = llm_client._mock_openai.chat.completions.create
-        mock_response = httpx.Response(500, request=httpx.Request("POST", "http://test"))
+        mock_response = httpx.Response(
+            500, request=httpx.Request("POST", "http://test")
+        )
         create.side_effect = [
             APIStatusError("Server error", response=mock_response, body=None),
             _make_response("recovered"),
@@ -221,7 +223,9 @@ class TestRetryLogic:
 
     def test_backoff_sleep_durations(self, llm_client):
         create = llm_client._mock_openai.chat.completions.create
-        mock_response = httpx.Response(500, request=httpx.Request("POST", "http://test"))
+        mock_response = httpx.Response(
+            500, request=httpx.Request("POST", "http://test")
+        )
         create.side_effect = [
             APIStatusError("err", response=mock_response, body=None),
             APIStatusError("err", response=mock_response, body=None),
@@ -237,7 +241,9 @@ class TestRetryLogic:
 
     def test_raises_llm_error_after_max_retries(self, llm_client):
         create = llm_client._mock_openai.chat.completions.create
-        mock_response = httpx.Response(500, request=httpx.Request("POST", "http://test"))
+        mock_response = httpx.Response(
+            500, request=httpx.Request("POST", "http://test")
+        )
         create.side_effect = APIStatusError(
             "Server error", response=mock_response, body=None
         )
@@ -300,7 +306,9 @@ class TestConnectionErrors:
 
     def test_connection_error_raises_llm_offline(self, llm_client):
         create = llm_client._mock_openai.chat.completions.create
-        create.side_effect = APIConnectionError(request=httpx.Request("POST", "http://test"))
+        create.side_effect = APIConnectionError(
+            request=httpx.Request("POST", "http://test")
+        )
 
         with (
             patch("proposal_assistant.llm.client.time.sleep"),
@@ -365,7 +373,7 @@ class TestExtractJson:
         assert exc_info.value.error_type == "LLM_INVALID"
 
     def test_raises_on_invalid_fenced_json(self):
-        text = '```json\nnot valid json\n```'
+        text = "```json\nnot valid json\n```"
         with pytest.raises(LLMError, match="not valid JSON") as exc_info:
             LLMClient._extract_json(text)
 
@@ -671,9 +679,7 @@ class TestPrepareTranscriptForAnalysis:
         cloud_response.choices[0].message.content = "Cloud summary"
         llm_client._cloud_client.chat.completions.create.return_value = cloud_response
 
-        result = llm_client._prepare_transcript_for_analysis(
-            long_text, use_cloud=True
-        )
+        result = llm_client._prepare_transcript_for_analysis(long_text, use_cloud=True)
 
         # Should have used cloud client
         assert llm_client._cloud_client.chat.completions.create.called
@@ -714,3 +720,298 @@ class TestGenerateDealAnalysisWithLongTranscripts:
         assert isinstance(result["content"], dict)
         # Should have made multiple calls (summarization + analysis)
         assert create.call_count > 1
+
+
+# ---------------------------------------------------------------------------
+# Cloud provider configuration
+# ---------------------------------------------------------------------------
+
+
+class TestCloudProviderInit:
+    """Tests for cloud provider initialization."""
+
+    def test_openai_cloud_client_configured(self):
+        """OpenAI cloud client is configured when API key is provided."""
+        config = Config(
+            slack_bot_token="xoxb-test",
+            slack_app_token="xapp-test",
+            slack_signing_secret="secret",
+            google_service_account_json="{}",
+            google_drive_root_folder_id="folder",
+            ollama_base_url="http://localhost:11434/v1",
+            ollama_model="qwen2.5:14b",
+            proposal_template_slide_id="slide",
+            ollama_num_ctx=32768,
+            cloud_provider="openai",
+            openai_api_key="sk-test-key",
+            openai_model="gpt-4o",
+        )
+
+        with patch("proposal_assistant.llm.client.OpenAI") as mock_openai:
+            mock_openai.return_value = MagicMock()
+            client = LLMClient(config)
+
+            assert client.cloud_available is True
+            assert client._cloud_provider == "openai"
+            assert client._cloud_model == "gpt-4o"
+
+    def test_cloud_available_false_when_no_cloud_config(self, llm_client):
+        """cloud_available is False when no cloud provider configured."""
+        assert llm_client.cloud_available is False
+
+
+# ---------------------------------------------------------------------------
+# generate_proposal_deck_content
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateProposalDeckContent:
+    """Tests for LLMClient.generate_proposal_deck_content."""
+
+    def test_returns_slide_content(self, llm_client):
+        """generate_proposal_deck_content returns parsed slide content."""
+        deck_response = {
+            "slide_1_cover": {"title": "Proposal"},
+            "slide_2_executive_summary": {"summary": "Summary text"},
+            "slide_3_client_context": {"context": "Context"},
+            "slide_4_challenges": {"challenges": ["Challenge 1"]},
+            "slide_5_proposed_solution": {"solution": "Solution"},
+            "slide_6_solution_scope": {"scope": "Scope"},
+            "slide_7_implementation": {"timeline": "Timeline"},
+            "slide_8_value_case": {"value": "Value"},
+            "slide_9_commercials": {"pricing": "Pricing"},
+            "slide_10_risk_mitigation": {"risks": ["Risk 1"]},
+            "slide_11_proof_of_success": {"proof": "Proof"},
+            "slide_12_next_steps": {"steps": ["Step 1"]},
+        }
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response(json.dumps(deck_response))
+
+        result = llm_client.generate_proposal_deck_content({"deal": "analysis"})
+
+        assert result["content"]["slide_1_cover"]["title"] == "Proposal"
+        assert "raw_response" in result
+
+    def test_sends_deal_analysis_in_user_message(self, llm_client):
+        """Deal analysis is JSON-encoded in user message."""
+        deck_response = {f"slide_{i}_key": {} for i in range(1, 13)}
+        deck_response["slide_1_cover"] = {}
+        deck_response["slide_2_executive_summary"] = {}
+        deck_response["slide_3_client_context"] = {}
+        deck_response["slide_4_challenges"] = {}
+        deck_response["slide_5_proposed_solution"] = {}
+        deck_response["slide_6_solution_scope"] = {}
+        deck_response["slide_7_implementation"] = {}
+        deck_response["slide_8_value_case"] = {}
+        deck_response["slide_9_commercials"] = {}
+        deck_response["slide_10_risk_mitigation"] = {}
+        deck_response["slide_11_proof_of_success"] = {}
+        deck_response["slide_12_next_steps"] = {}
+
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response(json.dumps(deck_response))
+
+        deal_analysis = {"opportunity_snapshot": {"company": "TestCo"}}
+        llm_client.generate_proposal_deck_content(deal_analysis)
+
+        messages = create.call_args[1]["messages"]
+        user_content = messages[1]["content"]
+        assert "TestCo" in user_content
+
+    def test_missing_slides_logged_as_warning(self, llm_client, caplog):
+        """Missing slide keys are logged as warning."""
+        # Only include some slides
+        partial_response = {
+            "slide_1_cover": {"title": "Proposal"},
+            "slide_2_executive_summary": {"summary": "Summary"},
+        }
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response(json.dumps(partial_response))
+
+        with caplog.at_level("WARNING"):
+            llm_client.generate_proposal_deck_content({})
+
+        assert "missing slide keys" in caplog.text
+
+    def test_non_dict_slide_raises_llm_invalid(self, llm_client):
+        """Non-dict slide value raises LLMError."""
+        invalid_response = {
+            "slide_1_cover": "not a dict",  # Should be dict
+            "slide_2_executive_summary": {},
+            "slide_3_client_context": {},
+            "slide_4_challenges": {},
+            "slide_5_proposed_solution": {},
+            "slide_6_solution_scope": {},
+            "slide_7_implementation": {},
+            "slide_8_value_case": {},
+            "slide_9_commercials": {},
+            "slide_10_risk_mitigation": {},
+            "slide_11_proof_of_success": {},
+            "slide_12_next_steps": {},
+        }
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response(json.dumps(invalid_response))
+
+        with pytest.raises(LLMError, match="not an object") as exc_info:
+            llm_client.generate_proposal_deck_content({})
+
+        assert exc_info.value.error_type == "LLM_INVALID"
+
+
+# ---------------------------------------------------------------------------
+# Cloud LLM calls
+# ---------------------------------------------------------------------------
+
+
+class TestCloudLLMCalls:
+    """Tests for cloud LLM provider calls."""
+
+    def test_call_cloud_raises_when_not_configured(self, llm_client):
+        """_call_cloud raises LLMError when no cloud provider configured."""
+        with pytest.raises(LLMError, match="not configured") as exc_info:
+            llm_client._call_cloud([{"role": "user", "content": "test"}])
+
+        assert exc_info.value.error_type == "LLM_ERROR"
+
+    def test_openai_cloud_call_returns_content(self, llm_client):
+        """OpenAI cloud call returns response content."""
+        # Configure cloud client
+        llm_client._cloud_provider = "openai"
+        llm_client._cloud_client = MagicMock()
+        llm_client._cloud_model = "gpt-4o"
+
+        cloud_response = MagicMock()
+        cloud_response.choices = [MagicMock()]
+        cloud_response.choices[0].message.content = "Cloud response"
+        llm_client._cloud_client.chat.completions.create.return_value = cloud_response
+
+        result = llm_client._call_cloud([{"role": "user", "content": "test"}])
+
+        assert result == "Cloud response"
+
+    def test_cloud_empty_response_raises_llm_invalid(self, llm_client):
+        """Empty cloud response raises LLMError."""
+        llm_client._cloud_provider = "openai"
+        llm_client._cloud_client = MagicMock()
+        llm_client._cloud_model = "gpt-4o"
+
+        cloud_response = MagicMock()
+        cloud_response.choices = [MagicMock()]
+        cloud_response.choices[0].message.content = ""
+        llm_client._cloud_client.chat.completions.create.return_value = cloud_response
+
+        with pytest.raises(LLMError, match="empty response") as exc_info:
+            llm_client._call_cloud([{"role": "user", "content": "test"}])
+
+        assert exc_info.value.error_type == "LLM_INVALID"
+
+    def test_cloud_retries_on_exception(self, llm_client):
+        """Cloud calls retry on transient errors."""
+        llm_client._cloud_provider = "openai"
+        llm_client._cloud_client = MagicMock()
+        llm_client._cloud_model = "gpt-4o"
+
+        success_response = MagicMock()
+        success_response.choices = [MagicMock()]
+        success_response.choices[0].message.content = "Success"
+
+        llm_client._cloud_client.chat.completions.create.side_effect = [
+            RuntimeError("Transient error"),
+            success_response,
+        ]
+
+        with patch("proposal_assistant.llm.client.time.sleep"):
+            result = llm_client._call_cloud([{"role": "user", "content": "test"}])
+
+        assert result == "Success"
+
+    def test_cloud_raises_after_max_retries(self, llm_client):
+        """Cloud calls raise LLMError after max retries."""
+        llm_client._cloud_provider = "openai"
+        llm_client._cloud_client = MagicMock()
+        llm_client._cloud_model = "gpt-4o"
+
+        llm_client._cloud_client.chat.completions.create.side_effect = RuntimeError(
+            "Persistent error"
+        )
+
+        with (
+            patch("proposal_assistant.llm.client.time.sleep"),
+            pytest.raises(LLMError, match="failed after 3 attempts"),
+        ):
+            llm_client._call_cloud([{"role": "user", "content": "test"}])
+
+    def test_generate_with_use_cloud_calls_cloud(self, llm_client):
+        """generate() with use_cloud=True calls cloud provider."""
+        llm_client._cloud_provider = "openai"
+        llm_client._cloud_client = MagicMock()
+        llm_client._cloud_model = "gpt-4o"
+
+        cloud_response = MagicMock()
+        cloud_response.choices = [MagicMock()]
+        cloud_response.choices[0].message.content = "Cloud response"
+        llm_client._cloud_client.chat.completions.create.return_value = cloud_response
+
+        result = llm_client.generate(
+            [{"role": "user", "content": "test"}],
+            use_cloud=True,
+        )
+
+        assert result == "Cloud response"
+        llm_client._cloud_client.chat.completions.create.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Anthropic cloud provider
+# ---------------------------------------------------------------------------
+
+
+class TestAnthropicProvider:
+    """Tests for Anthropic cloud provider."""
+
+    def test_call_anthropic_converts_messages(self, llm_client):
+        """_call_anthropic converts OpenAI format to Anthropic format."""
+        # Mock Anthropic client
+        mock_anthropic = MagicMock()
+        llm_client._cloud_provider = "anthropic"
+        llm_client._cloud_client = mock_anthropic
+        llm_client._cloud_model = "claude-3-opus-20240229"
+
+        # Mock response
+        mock_response = MagicMock()
+        mock_block = MagicMock()
+        mock_block.text = "Anthropic response"
+        mock_response.content = [mock_block]
+        mock_anthropic.messages.create.return_value = mock_response
+
+        messages = [
+            {"role": "system", "content": "System prompt"},
+            {"role": "user", "content": "User message"},
+        ]
+
+        result = llm_client._call_anthropic(messages, temperature=0.3)
+
+        assert result == "Anthropic response"
+        mock_anthropic.messages.create.assert_called_once()
+
+        # Verify system content extracted and messages converted
+        call_kwargs = mock_anthropic.messages.create.call_args[1]
+        assert call_kwargs["system"] == "System prompt"
+        assert call_kwargs["messages"] == [{"role": "user", "content": "User message"}]
+
+    def test_call_cloud_routes_to_anthropic(self, llm_client):
+        """_call_cloud routes to _call_anthropic for anthropic provider."""
+        mock_anthropic = MagicMock()
+        llm_client._cloud_provider = "anthropic"
+        llm_client._cloud_client = mock_anthropic
+        llm_client._cloud_model = "claude-3-opus-20240229"
+
+        mock_response = MagicMock()
+        mock_block = MagicMock()
+        mock_block.text = "Response"
+        mock_response.content = [mock_block]
+        mock_anthropic.messages.create.return_value = mock_response
+
+        result = llm_client._call_cloud([{"role": "user", "content": "test"}])
+
+        assert result == "Response"

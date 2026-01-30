@@ -17,7 +17,9 @@ class TestJSONStorageInit:
         """Creates data/threads directory on init."""
         with tempfile.TemporaryDirectory() as tmpdir:
             data_dir = Path(tmpdir) / "data"
-            storage = JSONStorage(data_dir=data_dir)
+            JSONStorage(
+                data_dir=data_dir
+            )  # noqa: F841 - instantiation creates directory
 
             threads_dir = data_dir / "threads"
             assert threads_dir.exists()

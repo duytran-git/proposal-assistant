@@ -37,9 +37,7 @@ class DocsClient:
         self._docs_service = build("docs", "v1", credentials=credentials)
         self._drive_service = build("drive", "v3", credentials=credentials)
 
-    def create_document(
-        self, title: str, folder_id: str
-    ) -> tuple[str, str]:
+    def create_document(self, title: str, folder_id: str) -> tuple[str, str]:
         """Create a new Google Doc in the specified folder.
 
         Uses the Drive API to create the document directly in the
