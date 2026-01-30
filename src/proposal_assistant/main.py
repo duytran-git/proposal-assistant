@@ -12,6 +12,7 @@ from proposal_assistant.slack.handlers import (
     handle_cloud_consent_no,
     handle_cloud_consent_yes,
     handle_rejection,
+    handle_status_command,
     handle_updated_deal_analysis,
 )
 
@@ -65,6 +66,11 @@ def create_app() -> App:
     def cloud_no_action(ack, body, say, client):
         ack()
         handle_cloud_consent_no(body, say, client)
+
+    # Register slash command for status check
+    @app.command("/pa-status")
+    def status_command(ack, respond):
+        handle_status_command(ack, respond)
 
     return app
 

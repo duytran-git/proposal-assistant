@@ -8,6 +8,7 @@ from typing import Any
 from slack_sdk import WebClient
 
 from proposal_assistant.config import get_config
+from proposal_assistant.status import BotStatus
 from proposal_assistant.docs.client import DocsClient
 from proposal_assistant.docs.deal_analysis import (
     create_versioned_document_title,
@@ -95,6 +96,9 @@ def handle_analyse_command(
         thread_ts,
         channel_type,
     )
+
+    # Track request for status reporting
+    BotStatus.get().record_request()
 
     # 1. Check for file attachments
     if not files:
@@ -1086,3 +1090,114 @@ def handle_cloud_consent_no(
     )
 
     say(text=":ok_hand: Got it, analysis cancelled.", thread_ts=thread_ts)
+
+
+def handle_status_command(
+    ack: Any,
+    respond: Any,
+) -> None:
+    """Handle the /pa-status slash command.
+
+    Returns bot status, Ollama health, and last request time.
+
+    Args:
+        ack: Slack acknowledge function.
+        respond: Slack respond function for slash commands.
+    """
+    ack()
+
+    config = get_config()
+    status = BotStatus.get()
+
+    # Check Ollama health
+    try:
+        llm = LLMClient(config)
+        ollama_healthy = llm.check_ollama_health()
+        ollama_status = "Online" if ollama_healthy else "Offline"
+        ollama_emoji = ":white_check_mark:" if ollama_healthy else ":x:"
+    except Exception as e:
+        logger.warning("Failed to check Ollama health: %s", e)
+        ollama_status = "Error"
+        ollama_emoji = ":warning:"
+
+    # Check cloud fallback status
+    cloud_status = "Not configured"
+    cloud_emoji = ":black_small_square:"
+    if config.cloud_provider:
+        try:
+            llm = LLMClient(config)
+            if llm.cloud_available:
+                cloud_status = f"Available ({config.cloud_provider})"
+                cloud_emoji = ":white_check_mark:"
+            else:
+                cloud_status = "Configured but unavailable"
+                cloud_emoji = ":warning:"
+        except Exception:
+            cloud_status = "Error"
+            cloud_emoji = ":warning:"
+
+    # Build status message
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "Proposal Assistant Status",
+                "emoji": True,
+            },
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Bot Status:*\n:white_check_mark: Running",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Uptime:*\n{status.uptime_str()}",
+                },
+            ],
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Ollama:*\n{ollama_emoji} {ollama_status}",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Cloud Fallback:*\n{cloud_emoji} {cloud_status}",
+                },
+            ],
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Last Request:*\n{status.last_request_str()}",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Total Requests:*\n{status.total_requests}",
+                },
+            ],
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"Environment: {config.environment} | Model: {config.ollama_model}",
+                }
+            ],
+        },
+    ]
+
+    respond(
+        text="Proposal Assistant Status",
+        blocks=blocks,
+        response_type="ephemeral",
+    )
