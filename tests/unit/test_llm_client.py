@@ -539,3 +539,178 @@ class TestUsageLogging:
             llm_client.generate([{"role": "user", "content": "test"}])
 
         assert "usage not reported" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# summarize_chunk
+# ---------------------------------------------------------------------------
+
+
+class TestSummarizeChunk:
+    """Tests for LLMClient.summarize_chunk."""
+
+    def test_returns_summary_from_llm(self, llm_client):
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response("This is a summary of the chunk.")
+
+        result = llm_client.summarize_chunk("Long transcript text here...")
+
+        assert result == "This is a summary of the chunk."
+
+    def test_uses_summarize_system_prompt(self, llm_client):
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response("Summary")
+
+        llm_client.summarize_chunk("chunk text")
+
+        messages = create.call_args[1]["messages"]
+        assert messages[0]["role"] == "system"
+        assert "summarizer" in messages[0]["content"]
+
+    def test_includes_chunk_in_user_message(self, llm_client):
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response("Summary")
+
+        llm_client.summarize_chunk("my chunk content here")
+
+        messages = create.call_args[1]["messages"]
+        assert messages[1]["role"] == "user"
+        assert "my chunk content here" in messages[1]["content"]
+
+    def test_empty_string_returns_empty(self, llm_client):
+        result = llm_client.summarize_chunk("")
+        assert result == ""
+
+    def test_whitespace_only_returns_empty(self, llm_client):
+        result = llm_client.summarize_chunk("   \n\t  ")
+        assert result == ""
+
+    def test_uses_low_temperature(self, llm_client):
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response("Summary")
+
+        llm_client.summarize_chunk("chunk")
+
+        call_kwargs = create.call_args[1]
+        assert call_kwargs["temperature"] == 0.2
+
+
+# ---------------------------------------------------------------------------
+# _prepare_transcript_for_analysis
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareTranscriptForAnalysis:
+    """Tests for LLMClient._prepare_transcript_for_analysis."""
+
+    def test_short_transcript_returned_unchanged(self, llm_client):
+        """Transcripts under threshold are returned as-is."""
+        short_text = "Short transcript content"
+
+        result = llm_client._prepare_transcript_for_analysis(short_text)
+
+        assert result == short_text
+
+    def test_empty_string_returns_empty(self, llm_client):
+        result = llm_client._prepare_transcript_for_analysis("")
+        assert result == ""
+
+    def test_list_of_transcripts_merged(self, llm_client):
+        """Multiple transcripts are merged with separators."""
+        transcripts = ["First transcript", "Second transcript"]
+
+        result = llm_client._prepare_transcript_for_analysis(transcripts)
+
+        assert "First transcript" in result
+        assert "Second transcript" in result
+        assert "---" in result
+
+    def test_empty_list_returns_empty(self, llm_client):
+        result = llm_client._prepare_transcript_for_analysis([])
+        assert result == ""
+
+    def test_long_transcript_gets_chunked_and_summarized(self, llm_client):
+        """Transcripts over threshold are chunked and summarized."""
+        # Create transcript that exceeds 32K tokens (roughly 4 chars per token)
+        # 32K tokens ≈ 128K chars, but we'll mock to test the logic
+        long_text = "word " * 40000  # ~40K words ≈ 52K tokens
+
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response("Chunk summary")
+
+        result = llm_client._prepare_transcript_for_analysis(long_text)
+
+        # Should have called LLM multiple times for chunk summaries
+        assert create.call_count > 0
+        # Result should contain summaries
+        assert "Summary of Part" in result
+
+    def test_summaries_numbered_sequentially(self, llm_client):
+        """Each chunk summary is numbered (Part 1, Part 2, etc.)."""
+        long_text = "word " * 40000
+
+        create = llm_client._mock_openai.chat.completions.create
+        create.return_value = _make_response("Chunk summary content")
+
+        result = llm_client._prepare_transcript_for_analysis(long_text)
+
+        assert "## Summary of Part 1" in result
+        # Depending on chunk count, may have more parts
+
+    def test_uses_cloud_when_specified(self, llm_client):
+        """use_cloud flag is passed to summarize_chunk calls."""
+        long_text = "word " * 40000
+
+        # Set up cloud client
+        llm_client._cloud_provider = "openai"
+        llm_client._cloud_client = MagicMock()
+        llm_client._cloud_model = "gpt-4o"
+
+        cloud_response = MagicMock()
+        cloud_response.choices = [MagicMock()]
+        cloud_response.choices[0].message.content = "Cloud summary"
+        llm_client._cloud_client.chat.completions.create.return_value = cloud_response
+
+        result = llm_client._prepare_transcript_for_analysis(
+            long_text, use_cloud=True
+        )
+
+        # Should have used cloud client
+        assert llm_client._cloud_client.chat.completions.create.called
+        assert "Summary of Part" in result
+
+
+# ---------------------------------------------------------------------------
+# generate_deal_analysis with long transcripts
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateDealAnalysisWithLongTranscripts:
+    """Tests for generate_deal_analysis handling of long transcripts."""
+
+    def test_long_transcript_preprocessed_before_analysis(
+        self, llm_client, deal_analysis_json
+    ):
+        """Long transcripts are summarized before deal analysis generation."""
+        long_text = "word " * 40000
+
+        create = llm_client._mock_openai.chat.completions.create
+
+        # First calls are for chunk summarization, last is for deal analysis
+        def side_effect(*args, **kwargs):
+            messages = kwargs.get("messages", [])
+            if messages and "senior sales advisor" in messages[0].get("content", ""):
+                # This is the deal analysis call
+                return _make_response(json.dumps(deal_analysis_json))
+            else:
+                # This is a chunk summarization call
+                return _make_response("Chunk summary content")
+
+        create.side_effect = side_effect
+
+        result = llm_client.generate_deal_analysis(long_text)
+
+        # Should return valid deal analysis
+        assert isinstance(result["content"], dict)
+        # Should have made multiple calls (summarization + analysis)
+        assert create.call_count > 1

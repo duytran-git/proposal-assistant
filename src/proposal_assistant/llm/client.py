@@ -9,7 +9,11 @@ from typing import Any
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 
 from proposal_assistant.config import Config
-from proposal_assistant.llm.context_builder import ContextBuilder
+from proposal_assistant.llm.context_builder import (
+    ContextBuilder,
+    chunk_text,
+    count_tokens,
+)
 from proposal_assistant.llm.prompts.deal_analysis import SYSTEM_PROMPT, format_user_prompt
 from proposal_assistant.llm.prompts.proposal_deck import (
     SYSTEM_PROMPT as PROPOSAL_DECK_SYSTEM_PROMPT,
@@ -39,6 +43,24 @@ class LLMError(Exception):
         super().__init__(message)
 
 
+SUMMARIZE_CHUNK_SYSTEM_PROMPT = """You are a meeting transcript summarizer. Your task is to create a concise but comprehensive summary of the transcript chunk provided.
+
+Focus on capturing:
+- Key discussion topics and decisions made
+- Action items and who is responsible
+- Important business details (companies, products, pricing, timelines)
+- Problems or challenges discussed
+- Proposed solutions or next steps
+
+Write the summary in clear, professional prose. Preserve specific names, numbers, dates, and technical terms exactly as mentioned. Do not add information not present in the transcript."""
+
+SUMMARIZE_CHUNK_USER_PROMPT = """Summarize the following transcript chunk:
+
+{chunk}
+
+Provide a comprehensive summary that captures all important information."""
+
+
 class LLMClient:
     """LLM API client connecting to Ollama via OpenAI-compatible SDK.
 
@@ -50,10 +72,14 @@ class LLMClient:
     Attributes:
         MAX_RETRIES: Maximum number of retry attempts.
         BACKOFF_SECONDS: Sleep durations between retries.
+        CHUNK_SUMMARIZE_THRESHOLD: Token count above which transcripts are chunked.
+        CHUNK_SIZE_TOKENS: Target size for each chunk when splitting.
     """
 
     MAX_RETRIES: int = 3
     BACKOFF_SECONDS: list[int] = [1, 2, 4]
+    CHUNK_SUMMARIZE_THRESHOLD: int = 32_000
+    CHUNK_SIZE_TOKENS: int = 8_000
 
     def __init__(self, config: Config) -> None:
         """Initialize the LLM client.
@@ -142,6 +168,9 @@ class LLMClient:
         Assembles context within token limits, sends to LLM with the
         deal analysis prompt, and parses the structured JSON response.
 
+        For transcripts exceeding 32K tokens, the transcript is first chunked
+        and summarized before analysis to fit within context limits.
+
         Args:
             transcript: Meeting transcript text, or list of transcript texts.
             references: Optional reference document texts.
@@ -157,9 +186,14 @@ class LLMClient:
         Raises:
             LLMError: If LLM call fails or response is not valid JSON.
         """
+        # Prepare transcript (chunk and summarize if >32K tokens)
+        prepared_transcript = self._prepare_transcript_for_analysis(
+            transcript, use_cloud=use_cloud
+        )
+
         builder = ContextBuilder()
         result = builder.build_context(
-            transcript=transcript,
+            transcript=prepared_transcript,
             references=references,
             web_content=web_content,
         )
@@ -270,6 +304,114 @@ class LLMClient:
             "content": parsed,
             "raw_response": raw,
         }
+
+    def summarize_chunk(
+        self,
+        chunk: str,
+        use_cloud: bool = False,
+    ) -> str:
+        """Summarize a transcript chunk.
+
+        Used for processing large transcripts that exceed the context window.
+        Each chunk is summarized independently, then summaries are combined.
+
+        Args:
+            chunk: Text chunk to summarize.
+            use_cloud: If True, use cloud provider instead of local Ollama.
+
+        Returns:
+            Summary of the chunk as a string.
+
+        Raises:
+            LLMError: If LLM call fails.
+        """
+        if not chunk or not chunk.strip():
+            return ""
+
+        messages = [
+            {"role": "system", "content": SUMMARIZE_CHUNK_SYSTEM_PROMPT},
+            {"role": "user", "content": SUMMARIZE_CHUNK_USER_PROMPT.format(chunk=chunk)},
+        ]
+
+        summary = self.generate(messages, temperature=0.2, use_cloud=use_cloud)
+        logger.debug(
+            "Chunk summarized: %d tokens -> %d tokens",
+            count_tokens(chunk),
+            count_tokens(summary),
+        )
+        return summary
+
+    def _prepare_transcript_for_analysis(
+        self,
+        transcript: str | list[str],
+        use_cloud: bool = False,
+    ) -> str:
+        """Prepare transcript for analysis, chunking and summarizing if needed.
+
+        If the transcript exceeds CHUNK_SUMMARIZE_THRESHOLD tokens, it is:
+        1. Split into chunks of ~CHUNK_SIZE_TOKENS each
+        2. Each chunk is summarized
+        3. Summaries are combined into a single condensed transcript
+
+        Args:
+            transcript: Raw transcript text or list of transcript texts.
+            use_cloud: If True, use cloud provider for summarization.
+
+        Returns:
+            Transcript text ready for analysis (original or summarized).
+        """
+        # Merge multiple transcripts if provided as list
+        if isinstance(transcript, list):
+            merged = "\n\n---\n\n".join(t.strip() for t in transcript if t.strip())
+        else:
+            merged = transcript.strip()
+
+        if not merged:
+            return ""
+
+        total_tokens = count_tokens(merged)
+
+        # If under threshold, return as-is
+        if total_tokens <= self.CHUNK_SUMMARIZE_THRESHOLD:
+            logger.debug(
+                "Transcript under threshold (%d tokens), no chunking needed",
+                total_tokens,
+            )
+            return merged
+
+        # Chunk and summarize
+        logger.info(
+            "Transcript exceeds threshold (%d > %d tokens), chunking and summarizing",
+            total_tokens,
+            self.CHUNK_SUMMARIZE_THRESHOLD,
+        )
+
+        chunks = chunk_text(merged, self.CHUNK_SIZE_TOKENS)
+        logger.info("Split transcript into %d chunks", len(chunks))
+
+        summaries: list[str] = []
+        for i, chunk in enumerate(chunks, start=1):
+            logger.info(
+                "Summarizing chunk %d/%d (%d tokens)",
+                i,
+                len(chunks),
+                count_tokens(chunk),
+            )
+            summary = self.summarize_chunk(chunk, use_cloud=use_cloud)
+            if summary:
+                summaries.append(f"## Summary of Part {i}\n\n{summary}")
+
+        combined = "\n\n---\n\n".join(summaries)
+        combined_tokens = count_tokens(combined)
+
+        logger.info(
+            "Transcript condensed: %d tokens -> %d tokens (%d%% reduction)",
+            total_tokens,
+            combined_tokens,
+            int((1 - combined_tokens / total_tokens) * 100),
+        )
+
+        return combined
 
     @staticmethod
     def _extract_json(text: str) -> dict[str, Any]:

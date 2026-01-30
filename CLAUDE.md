@@ -5,7 +5,7 @@
 - docs/technical-design.md - Architecture, APIs, tasks
 
 ## Rules
-- Python 3.12, uv, src/ layout
+- Python 3.14.2, uv, src/ layout
 - >80% test coverage
 - Never invent facts - use "Unknown"
 - All secrets via env vars
