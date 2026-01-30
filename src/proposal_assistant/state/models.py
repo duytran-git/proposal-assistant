@@ -30,6 +30,7 @@ class Event(Enum):
     DECK_CREATED = "DECK_CREATED"
     FAILED = "FAILED"
     REGENERATE_REQUESTED = "REGENERATE_REQUESTED"
+    CLOUD_CONSENT_GIVEN = "CLOUD_CONSENT_GIVEN"
 
 
 @dataclass
@@ -76,6 +77,9 @@ class ThreadState:
     error_message: Optional[str] = None
     error_type: Optional[str] = None
     retry_count: int = 0
+
+    # Cloud consent
+    cloud_consent_given: bool = False
 
     # Timestamps
     created_at: datetime = field(default_factory=datetime.utcnow)

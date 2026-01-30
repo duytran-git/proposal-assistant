@@ -16,6 +16,13 @@ from proposal_assistant.llm.prompts.proposal_deck import (
     format_user_prompt as format_proposal_deck_prompt,
 )
 
+# Optional imports for cloud providers
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,6 +43,8 @@ class LLMClient:
     """LLM API client connecting to Ollama via OpenAI-compatible SDK.
 
     Uses the openai SDK pointed at Ollama's /v1 endpoint.
+    Supports fallback to cloud providers (OpenAI or Anthropic) when local
+    Ollama is unavailable and user has given consent.
     Implements retry with exponential backoff for transient failures.
 
     Attributes:
@@ -50,8 +59,9 @@ class LLMClient:
         """Initialize the LLM client.
 
         Args:
-            config: Application configuration with Ollama connection details.
+            config: Application configuration with Ollama and cloud provider details.
         """
+        # Local Ollama client
         self._client = OpenAI(
             base_url=config.ollama_base_url,
             api_key="ollama",  # Ollama doesn't require a real key
@@ -59,10 +69,48 @@ class LLMClient:
         self._model = config.ollama_model
         self._num_ctx = config.ollama_num_ctx
 
+        # Cloud provider configuration
+        self._cloud_provider = config.cloud_provider
+        self._cloud_client: OpenAI | Any | None = None
+        self._cloud_model: str | None = None
+
+        # Initialize cloud client if configured
+        if config.cloud_provider == "openai" and config.openai_api_key:
+            self._cloud_client = OpenAI(api_key=config.openai_api_key)
+            self._cloud_model = config.openai_model
+            logger.info("Cloud fallback configured: OpenAI (%s)", config.openai_model)
+        elif config.cloud_provider == "anthropic" and config.anthropic_api_key:
+            if not ANTHROPIC_AVAILABLE:
+                logger.warning("Anthropic configured but SDK not installed")
+            else:
+                self._cloud_client = anthropic.Anthropic(api_key=config.anthropic_api_key)
+                self._cloud_model = config.anthropic_model
+                logger.info("Cloud fallback configured: Anthropic (%s)", config.anthropic_model)
+
+    @property
+    def cloud_available(self) -> bool:
+        """Check if cloud provider is configured and available."""
+        return self._cloud_client is not None
+
+    def check_ollama_health(self) -> bool:
+        """Check if Ollama service is healthy by pinging /v1/models endpoint.
+
+        Returns:
+            True if Ollama responds successfully, False otherwise.
+        """
+        try:
+            self._client.models.list()
+            logger.debug("Ollama health check passed")
+            return True
+        except Exception as e:
+            logger.warning("Ollama health check failed: %s", e)
+            return False
+
     def generate(
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.3,
+        use_cloud: bool = False,
     ) -> str:
         """Generate a completion from the LLM.
 
@@ -70,6 +118,7 @@ class LLMClient:
             messages: Chat messages in OpenAI format
                 (list of {"role": ..., "content": ...}).
             temperature: Sampling temperature (default: 0.3).
+            use_cloud: If True, use cloud provider instead of local Ollama.
 
         Returns:
             The LLM response text.
@@ -77,6 +126,8 @@ class LLMClient:
         Raises:
             LLMError: If all retries are exhausted or response is invalid.
         """
+        if use_cloud:
+            return self._call_cloud(messages, temperature=temperature)
         return self._call_with_retry(messages, temperature=temperature)
 
     def generate_deal_analysis(
@@ -84,6 +135,7 @@ class LLMClient:
         transcript: str | list[str],
         references: list[str] | None = None,
         web_content: list[str] | None = None,
+        use_cloud: bool = False,
     ) -> dict[str, Any]:
         """Generate a Deal Analysis from transcript and supporting materials.
 
@@ -94,6 +146,7 @@ class LLMClient:
             transcript: Meeting transcript text, or list of transcript texts.
             references: Optional reference document texts.
             web_content: Optional web research content texts.
+            use_cloud: If True, use cloud provider instead of local Ollama.
 
         Returns:
             Dict with keys:
@@ -116,7 +169,7 @@ class LLMClient:
             {"role": "user", "content": format_user_prompt(result.context)},
         ]
 
-        raw = self.generate(messages)
+        raw = self.generate(messages, use_cloud=use_cloud)
         parsed = self._extract_json(raw)
 
         content = parsed.get("deal_analysis", {})
@@ -144,6 +197,7 @@ class LLMClient:
     def generate_proposal_deck_content(
         self,
         deal_analysis: dict[str, Any],
+        use_cloud: bool = False,
     ) -> dict[str, Any]:
         """Generate Proposal Deck slide content from Deal Analysis.
 
@@ -152,6 +206,7 @@ class LLMClient:
 
         Args:
             deal_analysis: Parsed deal_analysis dict from generate_deal_analysis().
+            use_cloud: If True, use cloud provider instead of local Ollama.
 
         Returns:
             Dict with keys:
@@ -171,7 +226,7 @@ class LLMClient:
             {"role": "user", "content": format_proposal_deck_prompt(deal_analysis_text)},
         ]
 
-        raw = self.generate(messages)
+        raw = self.generate(messages, use_cloud=use_cloud)
         parsed = self._extract_json(raw)
 
         # Validate expected slide keys are present
@@ -366,3 +421,140 @@ class LLMClient:
             )
         else:
             logger.info("LLM response (attempt %d, usage not reported)", attempt)
+
+    def _call_cloud(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.3,
+    ) -> str:
+        """Call cloud LLM provider with retry logic.
+
+        Supports OpenAI and Anthropic APIs.
+
+        Args:
+            messages: Chat messages in OpenAI format.
+            temperature: Sampling temperature.
+
+        Returns:
+            The LLM response text.
+
+        Raises:
+            LLMError: If cloud provider is not configured or call fails.
+        """
+        if not self._cloud_client or not self._cloud_model:
+            raise LLMError(
+                "Cloud provider not configured",
+                error_type="LLM_ERROR",
+            )
+
+        last_error: Exception | None = None
+
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                if self._cloud_provider == "anthropic":
+                    content = self._call_anthropic(messages, temperature)
+                else:
+                    # OpenAI or OpenAI-compatible
+                    content = self._call_openai_cloud(messages, temperature)
+
+                if not content or not content.strip():
+                    raise LLMError(
+                        "Cloud LLM returned empty response",
+                        error_type="LLM_INVALID",
+                    )
+
+                logger.info(
+                    "Cloud LLM response (attempt %d, provider=%s)",
+                    attempt + 1,
+                    self._cloud_provider,
+                )
+                return content
+
+            except LLMError:
+                raise  # Don't retry invalid responses
+
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "Cloud LLM request failed (attempt %d/%d): %s",
+                    attempt + 1,
+                    self.MAX_RETRIES,
+                    exc,
+                )
+
+            # Sleep before next attempt
+            if attempt < self.MAX_RETRIES - 1:
+                sleep_time = self.BACKOFF_SECONDS[attempt]
+                logger.info("Retrying cloud LLM in %ds...", sleep_time)
+                time.sleep(sleep_time)
+
+        raise LLMError(
+            f"Cloud LLM request failed after {self.MAX_RETRIES} attempts: {last_error}",
+            error_type="LLM_ERROR",
+        ) from last_error
+
+    def _call_openai_cloud(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float,
+    ) -> str:
+        """Call OpenAI cloud API.
+
+        Args:
+            messages: Chat messages in OpenAI format.
+            temperature: Sampling temperature.
+
+        Returns:
+            The response content text.
+        """
+        response = self._cloud_client.chat.completions.create(
+            model=self._cloud_model,
+            messages=messages,  # type: ignore[arg-type]
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    def _call_anthropic(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float,
+    ) -> str:
+        """Call Anthropic Claude API.
+
+        Converts OpenAI message format to Anthropic format.
+
+        Args:
+            messages: Chat messages in OpenAI format.
+            temperature: Sampling temperature.
+
+        Returns:
+            The response content text.
+        """
+        # Extract system message and convert remaining to Anthropic format
+        system_content = ""
+        anthropic_messages = []
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_content = msg["content"]
+            else:
+                anthropic_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"],
+                })
+
+        response = self._cloud_client.messages.create(
+            model=self._cloud_model,
+            max_tokens=8192,
+            system=system_content,
+            messages=anthropic_messages,
+            temperature=temperature,
+        )
+
+        # Extract text from response content blocks
+        content_parts = []
+        for block in response.content:
+            if hasattr(block, "text"):
+                content_parts.append(block.text)
+
+        return "".join(content_parts)

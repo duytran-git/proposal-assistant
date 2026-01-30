@@ -7,6 +7,8 @@ import pytest
 from proposal_assistant.slack.handlers import (
     handle_analyse_command,
     handle_approval,
+    handle_cloud_consent_no,
+    handle_cloud_consent_yes,
     handle_rejection,
     handle_updated_deal_analysis,
 )
@@ -1570,3 +1572,251 @@ class TestHandleUpdatedDealAnalysis:
         calls = state_machine.transition.call_args_list
         last_call = calls[-1]
         assert last_call[1]["event"] == Event.DECK_CREATED
+
+
+class TestHandleCloudConsentYes:
+    """Tests for handle_cloud_consent_yes function."""
+
+    @pytest.fixture
+    def cloud_consent_body(self):
+        """Create a Slack action payload for cloud consent button click."""
+        return {
+            "channel": {"id": "C1234567890"},
+            "message": {"ts": "1706440000.000001", "thread_ts": "1706430000.000000"},
+            "user": {"id": "U1234567890"},
+        }
+
+    @pytest.fixture
+    def mock_thread_state_with_transcript(self):
+        """Mock thread state with stored transcript for cloud retry."""
+        return ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+            state=State.ERROR,
+            client_name="acme",
+            analyse_folder_id="analyse_123",
+            proposals_folder_id="proposals_123",
+            input_transcript_content=["# Meeting transcript content"],
+        )
+
+    def test_cloud_consent_yes_missing_transcript_shows_error(
+        self, mock_say, mock_client, cloud_consent_body
+    ):
+        """Missing transcript content shows STATE_MISSING error."""
+        mock_thread_state = ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+        )
+
+        with patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine:
+            StateMachine.return_value.get_state.return_value = mock_thread_state
+            handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)
+
+        mock_say.assert_called_once()
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["text"] == ERROR_MESSAGES["STATE_MISSING"]
+
+    def test_cloud_consent_yes_sends_analyzing_message(
+        self, mock_say, mock_client, cloud_consent_body, mock_config, mock_thread_state_with_transcript
+    ):
+        """Accepting cloud consent sends analyzing message and retries with cloud."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.DriveClient"),
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_with_transcript
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.return_value = ("doc_123", "https://docs.google.com/doc")
+            DocsClient.return_value = mock_docs
+
+            handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)
+
+        # First call should be "Analyzing..."
+        first_call = mock_say.call_args_list[0][1]
+        assert first_call["text"] == "Analyzing transcript..."
+        assert first_call["thread_ts"] == "1706430000.000000"
+
+    def test_cloud_consent_yes_calls_llm_with_use_cloud(
+        self, mock_say, mock_client, cloud_consent_body, mock_config, mock_thread_state_with_transcript
+    ):
+        """Cloud consent yes calls LLM with use_cloud=True."""
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.DriveClient"),
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_with_transcript
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.return_value = ("doc_123", "link")
+            DocsClient.return_value = mock_docs
+
+            handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)
+
+        # Verify LLM was called with use_cloud=True
+        mock_llm.generate_deal_analysis.assert_called_once()
+        call_kwargs = mock_llm.generate_deal_analysis.call_args[1]
+        assert call_kwargs["use_cloud"] is True
+
+    def test_cloud_consent_yes_transitions_state(
+        self, mock_say, mock_client, cloud_consent_body, mock_config, mock_thread_state_with_transcript
+    ):
+        """Cloud consent yes transitions state with cloud_consent_given=True."""
+        from proposal_assistant.state.models import Event
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
+            patch("proposal_assistant.slack.handlers.DriveClient"),
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_with_transcript
+
+            mock_llm = MagicMock()
+            mock_llm.generate_deal_analysis.return_value = {
+                "content": {"company": "Acme"},
+                "missing_info": [],
+            }
+            LLMClient.return_value = mock_llm
+
+            mock_docs = MagicMock()
+            mock_docs.create_document.return_value = ("doc_123", "link")
+            DocsClient.return_value = mock_docs
+
+            handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)
+
+        state_machine = StateMachine.return_value
+        calls = state_machine.transition.call_args_list
+        first_call = calls[0]
+        assert first_call[1]["event"] == Event.CLOUD_CONSENT_GIVEN
+        assert first_call[1]["cloud_consent_given"] is True
+
+    def test_cloud_consent_yes_gets_thread_state(
+        self, mock_say, mock_client, cloud_consent_body
+    ):
+        """Accepting cloud consent retrieves thread state."""
+        mock_thread_state = ThreadState(
+            thread_ts="1706430000.000000",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+        )
+
+        with patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine:
+            StateMachine.return_value.get_state.return_value = mock_thread_state
+            handle_cloud_consent_yes(cloud_consent_body, mock_say, mock_client)
+
+        StateMachine.return_value.get_state.assert_called_once_with(
+            "1706430000.000000",
+            "C1234567890",
+            "U1234567890",
+        )
+
+    def test_cloud_consent_yes_uses_message_ts_when_no_thread_ts(
+        self, mock_say, mock_client
+    ):
+        """Uses message ts when thread_ts is not present."""
+        body_no_thread = {
+            "channel": {"id": "C1234567890"},
+            "message": {"ts": "1706440000.000001"},
+            "user": {"id": "U1234567890"},
+        }
+
+        mock_thread_state = ThreadState(
+            thread_ts="1706440000.000001",
+            channel_id="C1234567890",
+            user_id="U1234567890",
+        )
+
+        with patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine:
+            StateMachine.return_value.get_state.return_value = mock_thread_state
+            handle_cloud_consent_yes(body_no_thread, mock_say, mock_client)
+
+        # Should show error since no transcript content
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["thread_ts"] == "1706440000.000001"
+
+
+class TestHandleCloudConsentNo:
+    """Tests for handle_cloud_consent_no function."""
+
+    @pytest.fixture
+    def cloud_consent_body(self):
+        """Create a Slack action payload for cloud consent button click."""
+        return {
+            "channel": {"id": "C1234567890"},
+            "message": {"ts": "1706440000.000001", "thread_ts": "1706430000.000000"},
+            "user": {"id": "U1234567890"},
+        }
+
+    def test_cloud_consent_no_sends_cancelled_message(
+        self, mock_say, mock_client, cloud_consent_body
+    ):
+        """Declining cloud consent sends cancellation message."""
+        with patch("proposal_assistant.slack.handlers.StateMachine"):
+            handle_cloud_consent_no(cloud_consent_body, mock_say, mock_client)
+
+        mock_say.assert_called_once()
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["text"] == ":ok_hand: Got it, analysis cancelled."
+        assert call_kwargs["thread_ts"] == "1706430000.000000"
+
+    def test_cloud_consent_no_transitions_to_rejected(
+        self, mock_say, mock_client, cloud_consent_body
+    ):
+        """Declining cloud consent transitions state to REJECTED."""
+        from proposal_assistant.state.models import Event
+
+        with patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine:
+            handle_cloud_consent_no(cloud_consent_body, mock_say, mock_client)
+
+        state_machine = StateMachine.return_value
+        state_machine.transition.assert_called_once()
+        call_kwargs = state_machine.transition.call_args[1]
+        assert call_kwargs["event"] == Event.REJECTED
+        assert call_kwargs["thread_ts"] == "1706430000.000000"
+        assert call_kwargs["channel_id"] == "C1234567890"
+
+    def test_cloud_consent_no_uses_message_ts_when_no_thread_ts(
+        self, mock_say, mock_client
+    ):
+        """Uses message ts when thread_ts is not present."""
+        body_no_thread = {
+            "channel": {"id": "C1234567890"},
+            "message": {"ts": "1706440000.000001"},
+            "user": {"id": "U1234567890"},
+        }
+
+        with patch("proposal_assistant.slack.handlers.StateMachine"):
+            handle_cloud_consent_no(body_no_thread, mock_say, mock_client)
+
+        call_kwargs = mock_say.call_args[1]
+        assert call_kwargs["thread_ts"] == "1706440000.000001"

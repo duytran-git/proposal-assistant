@@ -82,6 +82,49 @@ class TestLLMClientInit:
 
 
 # ---------------------------------------------------------------------------
+# check_ollama_health
+# ---------------------------------------------------------------------------
+
+
+class TestCheckOllamaHealth:
+    """Tests for LLMClient.check_ollama_health."""
+
+    def test_returns_true_on_success(self, llm_client):
+        llm_client._mock_openai.models.list.return_value = MagicMock()
+
+        result = llm_client.check_ollama_health()
+
+        assert result is True
+        llm_client._mock_openai.models.list.assert_called_once()
+
+    def test_returns_false_on_connection_error(self, llm_client):
+        llm_client._mock_openai.models.list.side_effect = APIConnectionError(
+            request=httpx.Request("GET", "http://test")
+        )
+
+        result = llm_client.check_ollama_health()
+
+        assert result is False
+
+    def test_returns_false_on_api_error(self, llm_client):
+        mock_response = httpx.Response(500, request=httpx.Request("GET", "http://test"))
+        llm_client._mock_openai.models.list.side_effect = APIStatusError(
+            "Server error", response=mock_response, body=None
+        )
+
+        result = llm_client.check_ollama_health()
+
+        assert result is False
+
+    def test_returns_false_on_unexpected_exception(self, llm_client):
+        llm_client._mock_openai.models.list.side_effect = RuntimeError("unexpected")
+
+        result = llm_client.check_ollama_health()
+
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
 # generate() happy path
 # ---------------------------------------------------------------------------
 

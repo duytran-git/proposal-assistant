@@ -20,6 +20,7 @@ from proposal_assistant.llm.client import LLMClient, LLMError
 from proposal_assistant.slack.messages import (
     format_analyzing,
     format_approval_buttons,
+    format_cloud_consent,
     format_deal_analysis_complete,
     format_deck_complete,
     format_error,
@@ -204,8 +205,8 @@ def handle_analyse_command(
             web_content = None
 
     # 7. Build context and call LLM
+    llm = LLMClient(config)
     try:
-        llm = LLMClient(config)
         result = llm.generate_deal_analysis(
             transcript=transcript_parts,
             web_content=web_content,
@@ -221,8 +222,13 @@ def handle_analyse_command(
             error_type=e.error_type,
             error_message=str(e),
         )
-        error_msg = format_error(e.error_type)
-        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        # Show cloud consent buttons if LLM is offline and cloud is available
+        if e.error_type == "LLM_OFFLINE" and llm.cloud_available:
+            consent_msg = format_cloud_consent()
+            say(text=consent_msg["text"], blocks=consent_msg["blocks"], thread_ts=thread_ts)
+        else:
+            error_msg = format_error(e.error_type)
+            say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
     except Exception as e:
         logger.error("Unexpected LLM error: %s", e)
@@ -810,3 +816,180 @@ def handle_updated_deal_analysis(
         thread_state.client_name,
         deck_id,
     )
+
+
+def handle_cloud_consent_yes(
+    body: dict[str, Any],
+    say: Any,
+    client: WebClient,
+) -> None:
+    """Handle user accepting cloud AI usage.
+
+    Retries the analysis using cloud AI instead of local Ollama.
+
+    Args:
+        body: Slack action payload containing channel, thread, and user info.
+        say: Slack say function for replying in thread.
+        client: Slack WebClient for API calls.
+    """
+    channel = body.get("channel", {}).get("id")
+    thread_ts = body.get("message", {}).get("thread_ts") or body.get("message", {}).get("ts")
+    user_id = body.get("user", {}).get("id")
+
+    logger.info(
+        "User accepted cloud AI in channel=%s thread=%s user=%s",
+        channel,
+        thread_ts,
+        user_id,
+    )
+
+    # Get thread state to retrieve stored transcript
+    state_machine = StateMachine()
+    thread_state = state_machine.get_state(thread_ts, channel, user_id)
+
+    # Check for required state data
+    if not thread_state.input_transcript_content:
+        logger.error("Missing transcript content for cloud retry")
+        error_msg = format_error("STATE_MISSING")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # Transition to GENERATING_DEAL_ANALYSIS with cloud consent
+    state_machine.transition(
+        thread_ts=thread_ts,
+        channel_id=channel,
+        event=Event.CLOUD_CONSENT_GIVEN,
+        cloud_consent_given=True,
+    )
+
+    # Acknowledge with analyzing message
+    analyzing_msg = format_analyzing()
+    say(text=analyzing_msg["text"], blocks=analyzing_msg["blocks"], thread_ts=thread_ts)
+
+    config = get_config()
+
+    # Retry LLM call with cloud
+    try:
+        llm = LLMClient(config)
+        result = llm.generate_deal_analysis(
+            transcript=thread_state.input_transcript_content,
+            use_cloud=True,
+        )
+        deal_analysis_content = result["content"]
+        missing_info = result.get("missing_info", [])
+    except LLMError as e:
+        logger.error("Cloud LLM error: %s (type=%s)", e, e.error_type)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type=e.error_type,
+            error_message=str(e),
+        )
+        error_msg = format_error(e.error_type)
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+    except Exception as e:
+        logger.error("Unexpected cloud LLM error: %s", e)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type="LLM_ERROR",
+            error_message=str(e),
+        )
+        error_msg = format_error("LLM_ERROR")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # Create Google Doc
+    try:
+        drive = DriveClient(config)
+        docs = DocsClient(config)
+        doc_title = f"{thread_state.client_name} - Deal Analysis"
+        doc_id, doc_link = docs.create_document(
+            doc_title, thread_state.analyse_folder_id
+        )
+        populate_deal_analysis(docs, doc_id, deal_analysis_content, missing_info)
+    except Exception as e:
+        logger.error("Failed to create Deal Analysis doc: %s", e)
+        state_machine.transition(
+            thread_ts=thread_ts,
+            channel_id=channel,
+            event=Event.FAILED,
+            error_type="DOCS_ERROR",
+            error_message=str(e),
+        )
+        error_msg = format_error("DOCS_ERROR")
+        say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
+        return
+
+    # Share doc with user (DM) or channel members
+    try:
+        if thread_state.channel_type == "im":
+            email = share_with_user_by_id(drive, doc_id, user_id, client)
+            if email:
+                logger.info("Shared Deal Analysis doc with user %s", email)
+        else:
+            shared_emails = share_with_channel_members(drive, doc_id, channel, client)
+            logger.info("Shared Deal Analysis doc with %d users", len(shared_emails))
+    except Exception as e:
+        logger.warning("Failed to share Deal Analysis doc: %s", e)
+
+    # Transition to WAITING_FOR_APPROVAL
+    state_machine.transition(
+        thread_ts=thread_ts,
+        channel_id=channel,
+        event=Event.DEAL_ANALYSIS_CREATED,
+        deal_analysis_doc_id=doc_id,
+        deal_analysis_link=doc_link,
+        deal_analysis_content=deal_analysis_content,
+        missing_info_items=missing_info,
+    )
+
+    # Send message with link + approval buttons
+    completion_msg = format_deal_analysis_complete(doc_link, missing_info)
+    approval_buttons = format_approval_buttons()
+
+    blocks = completion_msg["blocks"] + [approval_buttons]
+    say(text=completion_msg["text"], blocks=blocks, thread_ts=thread_ts)
+
+    logger.info(
+        "Deal Analysis complete via cloud for %s, doc_id=%s, awaiting approval",
+        thread_state.client_name,
+        doc_id,
+    )
+
+
+def handle_cloud_consent_no(
+    body: dict[str, Any],
+    say: Any,
+    client: WebClient,
+) -> None:
+    """Handle user declining cloud AI usage.
+
+    Cancels the operation with a message.
+
+    Args:
+        body: Slack action payload containing channel, thread, and user info.
+        say: Slack say function for replying in thread.
+        client: Slack WebClient for API calls.
+    """
+    channel = body.get("channel", {}).get("id")
+    thread_ts = body.get("message", {}).get("thread_ts") or body.get("message", {}).get("ts")
+
+    logger.info(
+        "User declined cloud AI in channel=%s thread=%s",
+        channel,
+        thread_ts,
+    )
+
+    # Transition to failed/cancelled state
+    state_machine = StateMachine()
+    state_machine.transition(
+        thread_ts=thread_ts,
+        channel_id=channel,
+        event=Event.REJECTED,
+    )
+
+    say(text=":ok_hand: Got it, analysis cancelled.", thread_ts=thread_ts)

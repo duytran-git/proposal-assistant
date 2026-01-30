@@ -8,6 +8,10 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from proposal_assistant.config import get_config
 from proposal_assistant.slack.handlers import (
     handle_analyse_command,
+    handle_approval,
+    handle_cloud_consent_no,
+    handle_cloud_consent_yes,
+    handle_rejection,
     handle_updated_deal_analysis,
 )
 
@@ -39,6 +43,28 @@ def create_app() -> App:
     def handle_message_event(event, say, client):
         if event.get("files"):
             handle_updated_deal_analysis(event, say, client)
+
+    # Register action handlers for approval buttons
+    @app.action("approve_deck")
+    def approve_action(ack, body, say, client):
+        ack()
+        handle_approval(body, say, client)
+
+    @app.action("reject_deck")
+    def reject_action(ack, body, say, client):
+        ack()
+        handle_rejection(body, say, client)
+
+    # Register action handlers for cloud consent buttons
+    @app.action("cloud_consent_yes")
+    def cloud_yes_action(ack, body, say, client):
+        ack()
+        handle_cloud_consent_yes(body, say, client)
+
+    @app.action("cloud_consent_no")
+    def cloud_no_action(ack, body, say, client):
+        ack()
+        handle_cloud_consent_no(body, say, client)
 
     return app
 

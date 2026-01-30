@@ -32,6 +32,13 @@ class Config:
     log_level: str = "INFO"
     environment: str = "development"
 
+    # Cloud LLM (Optional - for fallback when Ollama is offline)
+    cloud_provider: str | None = None  # "openai" or "anthropic"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4o"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-sonnet-4-20250514"
+
 
 def _get_required_env(key: str) -> str:
     """Get required environment variable or raise error."""
@@ -63,4 +70,10 @@ def get_config() -> Config:
         ollama_num_ctx=int(os.getenv("OLLAMA_NUM_CTX", "32768")),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         environment=os.getenv("ENVIRONMENT", "development"),
+        # Cloud LLM (Optional)
+        cloud_provider=os.getenv("CLOUD_PROVIDER"),  # "openai" or "anthropic"
+        openai_api_key=os.getenv("OPENAI_API_KEY"),
+        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
     )

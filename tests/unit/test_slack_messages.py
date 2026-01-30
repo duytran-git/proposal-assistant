@@ -7,6 +7,7 @@ from proposal_assistant.slack.messages import (
     ERROR_MESSAGES,
     format_analyzing,
     format_approval_buttons,
+    format_cloud_consent,
     format_deal_analysis_complete,
     format_error,
     format_fetch_failures,
@@ -113,6 +114,59 @@ class TestFormatApprovalButtons:
         assert no_button["text"]["text"] == "No"
         assert no_button["style"] == "danger"
         assert no_button["action_id"] == "reject_deck"
+
+
+class TestFormatCloudConsent:
+    """Tests for format_cloud_consent function."""
+
+    def test_returns_dict_with_text_and_blocks(self):
+        result = format_cloud_consent()
+        assert isinstance(result, dict)
+        assert "text" in result
+        assert "blocks" in result
+
+    def test_text_fallback_is_set(self):
+        result = format_cloud_consent()
+        assert result["text"] == "Local AI unavailable. Use cloud?"
+
+    def test_contains_two_blocks(self):
+        result = format_cloud_consent()
+        assert len(result["blocks"]) == 2
+
+    def test_first_block_is_section_with_warning(self):
+        result = format_cloud_consent()
+        section_block = result["blocks"][0]
+        assert section_block["type"] == "section"
+        assert section_block["text"]["type"] == "mrkdwn"
+        assert ":warning:" in section_block["text"]["text"]
+        assert "Local AI unavailable" in section_block["text"]["text"]
+
+    def test_second_block_is_actions(self):
+        result = format_cloud_consent()
+        actions_block = result["blocks"][1]
+        assert actions_block["type"] == "actions"
+        assert actions_block["block_id"] == "cloud_consent_actions"
+
+    def test_contains_two_buttons(self):
+        result = format_cloud_consent()
+        elements = result["blocks"][1]["elements"]
+        assert len(elements) == 2
+
+    def test_yes_button_properties(self):
+        result = format_cloud_consent()
+        yes_button = result["blocks"][1]["elements"][0]
+        assert yes_button["type"] == "button"
+        assert yes_button["text"]["text"] == "Yes"
+        assert yes_button["style"] == "primary"
+        assert yes_button["action_id"] == "cloud_consent_yes"
+
+    def test_no_button_properties(self):
+        result = format_cloud_consent()
+        no_button = result["blocks"][1]["elements"][1]
+        assert no_button["type"] == "button"
+        assert no_button["text"]["text"] == "No"
+        assert no_button["style"] == "danger"
+        assert no_button["action_id"] == "cloud_consent_no"
 
 
 class TestFormatError:

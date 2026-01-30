@@ -28,6 +28,8 @@ class TestTransitionsDict:
             (State.GENERATING_DECK, Event.DECK_CREATED, State.DONE),
             (State.GENERATING_DECK, Event.FAILED, State.ERROR),
             (State.ERROR, Event.ANALYSE_REQUESTED, State.GENERATING_DEAL_ANALYSIS),
+            (State.ERROR, Event.CLOUD_CONSENT_GIVEN, State.GENERATING_DEAL_ANALYSIS),
+            (State.ERROR, Event.REJECTED, State.DONE),
         ]
 
         for from_state, event, to_state in expected:
@@ -36,7 +38,7 @@ class TestTransitionsDict:
 
     def test_transition_count(self):
         """Correct number of transitions defined."""
-        assert len(TRANSITIONS) == 11
+        assert len(TRANSITIONS) == 13
 
 
 class TestCanTransition:

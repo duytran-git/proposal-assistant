@@ -235,6 +235,46 @@ def format_fetch_failures(failed_urls: list[str]) -> dict[str, Any]:
     }
 
 
+def format_cloud_consent() -> dict[str, Any]:
+    """Format the cloud consent message with Yes/No buttons.
+
+    Shown when local Ollama is unavailable and user can opt into cloud AI.
+
+    Returns:
+        Slack Block Kit message with consent prompt and buttons.
+    """
+    return {
+        "text": "Local AI unavailable. Use cloud?",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":warning: *Local AI unavailable. Use cloud?*",
+                },
+            },
+            {
+                "type": "actions",
+                "block_id": "cloud_consent_actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Yes", "emoji": True},
+                        "style": "primary",
+                        "action_id": "cloud_consent_yes",
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "No", "emoji": True},
+                        "style": "danger",
+                        "action_id": "cloud_consent_no",
+                    },
+                ],
+            },
+        ],
+    }
+
+
 def format_error(error_type: str) -> dict[str, Any]:
     """Format a user-friendly error message.
 

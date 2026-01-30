@@ -19,6 +19,8 @@ TRANSITIONS: dict[tuple[State, Event], State] = {
     (State.GENERATING_DECK, Event.DECK_CREATED): State.DONE,
     (State.GENERATING_DECK, Event.FAILED): State.ERROR,
     (State.ERROR, Event.ANALYSE_REQUESTED): State.GENERATING_DEAL_ANALYSIS,
+    (State.ERROR, Event.CLOUD_CONSENT_GIVEN): State.GENERATING_DEAL_ANALYSIS,
+    (State.ERROR, Event.REJECTED): State.DONE,  # User declines cloud consent
 }
 
 
