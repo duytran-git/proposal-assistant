@@ -1,0 +1,68 @@
+{
+  "thread_ts": "1770379090.198679",
+  "channel_id": "C0AC21C4DT7",
+  "user_id": "U0A331B8ZNW",
+  "channel_type": "channel",
+  "user_email": null,
+  "client_name": "acme",
+  "client_folder_id": "10DoifHb7tWH9GXS9GNyhWWEhomTGfbH3",
+  "analyse_folder_id": "11-X-8uXqT1bLyMJiGWEgCXSLZ5CVFETB",
+  "proposals_folder_id": "15-8mSu8A7qsdv_D3-5xACuIDubrS--Q-",
+  "deal_analysis_doc_id": "1vPFdp2KIMqc-6pAbKuUShvpFNRRcicapkhOZo7B5cBg",
+  "deal_analysis_link": "https://docs.google.com/document/d/1vPFdp2KIMqc-6pAbKuUShvpFNRRcicapkhOZo7B5cBg/edit?usp=drivesdk",
+  "deal_analysis_content": {
+    "opportunity_snapshot": {
+      "company": "Acme Corp",
+      "industry_segment": "Unknown / Not provided",
+      "size": "Unknown / Not provided",
+      "contacts": "John Smith (CTO), Sarah Chen (VP of Engineering), Mike Johnson (CFO)",
+      "opportunity_name": "Modernize Data Infrastructure at Acme Corp",
+      "stage_and_target_close": "Discovery phase, target close by Q3"
+    },
+    "problem_impact": {
+      "core_problem_statement": "Legacy data infrastructure with slow query performance, data silos, and scaling concerns.",
+      "business_impact": "Slow report generation times, lack of integrated sales and marketing data, inability to scale effectively."
+    },
+    "current_desired_state": {
+      "current_state": "Running on legacy systems that are 10 years old; slow query performance; data silos between departments; scaling concerns due to rapid growth.",
+      "desired_future_state": "Faster report generation times; integrated sales and marketing data; ability to scale effectively."
+    },
+    "buying_dynamics": {
+      "stakeholders_power_map": "John Smith (CTO) - High, Sarah Chen (VP of Engineering) - Medium, Mike Johnson (CFO) - High",
+      "decision_process_timing": "Q3 2024",
+      "perceived_risks": "High cost and complexity associated with modernizing legacy systems."
+    },
+    "renessai_fit": {
+      "how_renessai_solves_top_pains": "Renessai can provide a modern data infrastructure solution that addresses slow query performance, integrates disparate data sources, and scales to accommodate growth.",
+      "differentiation_vs_status_quo": "Renessai offers advanced analytics tools and expertise in cloud migration which differentiates from the current status quo of legacy systems.",
+      "delivery_phasing_idea": "Phase 1: Assessment and planning; Phase 2: Implementation of new data infrastructure; Phase 3: Integration and optimization."
+    },
+    "proof_next_actions": {
+      "proof_points_to_use": "Case studies on similar modernization projects, testimonials from existing clients.",
+      "next_steps": "Schedule technical deep-dive with engineering team; prepare initial proposal for review."
+    }
+  },
+  "deal_analysis_version": 1,
+  "slides_deck_id": "17gE4nI8y9IX_YeJ49u-MKpnOyKB02DEk_QFJdiN2HA0",
+  "slides_deck_link": "https://docs.google.com/presentation/d/17gE4nI8y9IX_YeJ49u-MKpnOyKB02DEk_QFJdiN2HA0/edit?usp=drivesdk",
+  "state": "DONE",
+  "previous_state": "GENERATING_DECK",
+  "input_transcript_file_ids": [
+    "F0ACZKX73F1"
+  ],
+  "input_transcript_content": [
+    "# Discovery Call - Acme Corp\nDate: 2024-01-15\nAttendees: John Smith (Acme), Jane Doe (Renessai)\n\n## Discussion\n\nJohn: Thanks for taking the time to meet with us. We're looking to modernize\nour data infrastructure. Currently we're running on legacy systems that are\nabout 10 years old.\n\nJane: I understand. Can you tell me more about the challenges you're facing?\n\nJohn: Our main issues are:\n1. Slow query performance - reports take hours to generate\n2. Data silos - marketing and sales data don't talk to each other\n3. Scaling concerns - we're growing 30% year over year\n\nJane: What's your timeline for this project?\n\nJohn: We'd like to have something in place by Q3. Budget-wise, we're looking\nat around $500K for the initial implementation.\n\nJane: That's helpful. Who are the key stakeholders we should involve?\n\nJohn: Besides myself as CTO, you'll want to talk to Sarah Chen, our VP of\nEngineering, and Mike Johnson, CFO.\n\n## Next Steps\n- Schedule technical deep-dive with engineering team\n- Prepare initial proposal for review"
+  ],
+  "input_reference_file_ids": [],
+  "input_urls": [],
+  "missing_info_items": [
+    "Industry segment",
+    "Company size"
+  ],
+  "error_message": null,
+  "error_type": null,
+  "retry_count": 0,
+  "cloud_consent_given": false,
+  "created_at": "2026-02-06T11:58:11.689344",
+  "updated_at": "2026-02-06T12:02:02.388625"
+}

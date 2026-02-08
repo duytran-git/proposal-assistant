@@ -1,0 +1,71 @@
+{
+  "thread_ts": "1770380230.593989",
+  "channel_id": "C0AC21C4DT7",
+  "user_id": "U0A331B8ZNW",
+  "channel_type": "channel",
+  "user_email": null,
+  "client_name": "acme",
+  "client_folder_id": "1Ok0ylRO6ffKOfQX_cZU9u3O2mLuo6Lza",
+  "analyse_folder_id": "13qgeFWBRvqLZu1CVYnPFm59ulE1iGGtl",
+  "proposals_folder_id": "12FdZ3an2TiCb4X23LAdzavOdH0lmzZ9l",
+  "deal_analysis_doc_id": "1_yErenLjRhuU1hlxSXlCllZSCxvGsef55h5K66sRPGU",
+  "deal_analysis_link": "https://docs.google.com/document/d/1_yErenLjRhuU1hlxSXlCllZSCxvGsef55h5K66sRPGU/edit?usp=drivesdk",
+  "deal_analysis_content": {
+    "opportunity_snapshot": {
+      "company": "Acme Corp",
+      "industry_segment": "Unknown / Not provided",
+      "size": "Unknown / Not provided",
+      "contacts": "John Smith (CTO), Sarah Chen (VP of Engineering), Mike Johnson (CFO)",
+      "opportunity_name": "Modernize Data Infrastructure for Acme Corp",
+      "stage_and_target_close": "Discovery phase, target close by Q3"
+    },
+    "problem_impact": {
+      "core_problem_statement": "Legacy data infrastructure with slow query performance, data silos, and scaling concerns.",
+      "business_impact": "Risks: Slow decision-making due to delayed reports; Value: Improved efficiency and collaboration between departments; KPIs: Reduced report generation time, increased cross-departmental data sharing"
+    },
+    "current_desired_state": {
+      "current_state": "Running on legacy systems that are 10 years old with slow query performance, data silos, and scaling issues.",
+      "desired_future_state": "Outcomes: Faster report generation, seamless data integration between departments; Must-haves: Improved system performance, integrated data infrastructure; Nice-to-haves: Scalable solution for future growth; Non-negotiables: Solution must handle current workload with room for expansion"
+    },
+    "buying_dynamics": {
+      "stakeholders_power_map": "John Smith (CTO) - High influence and power; Sarah Chen (VP of Engineering) - Medium influence, high power; Mike Johnson (CFO) - Low influence, medium power",
+      "decision_process_timing": "Q3 2024",
+      "perceived_risks": "Budget constraints, timeline adherence, technical feasibility"
+    },
+    "renessai_fit": {
+      "how_renessai_solves_top_pains": "Renessai can provide a modern data infrastructure solution that addresses slow query performance and data silos through advanced analytics tools and integrated systems.",
+      "differentiation_vs_status_quo": "Differentiation: Renessai offers cutting-edge technology and expertise in data integration, whereas the current status quo involves outdated legacy systems with limited scalability.",
+      "delivery_phasing_idea": "Phase 1: Initial assessment and planning; Phase 2: Implementation of core infrastructure; Phase 3: Integration and optimization"
+    },
+    "proof_next_actions": {
+      "proof_points_to_use": "Case studies from similar clients, testimonials on successful data modernization projects",
+      "next_steps": "Schedule technical deep-dive with engineering team, prepare initial proposal for review"
+    }
+  },
+  "deal_analysis_version": 1,
+  "slides_deck_id": "12GzyOfyJLUEVnVb6p9qAErFb2pTcMU06FHL4uiUSDzc",
+  "slides_deck_link": "https://docs.google.com/presentation/d/12GzyOfyJLUEVnVb6p9qAErFb2pTcMU06FHL4uiUSDzc/edit?usp=drivesdk",
+  "state": "DONE",
+  "previous_state": "GENERATING_DECK",
+  "input_transcript_file_ids": [
+    "F0ADF6MLGSE"
+  ],
+  "input_transcript_content": [
+    "# Discovery Call - Acme Corp\nDate: 2024-01-15\nAttendees: John Smith (Acme), Jane Doe (Renessai)\n\n## Discussion\n\nJohn: Thanks for taking the time to meet with us. We're looking to modernize\nour data infrastructure. Currently we're running on legacy systems that are\nabout 10 years old.\n\nJane: I understand. Can you tell me more about the challenges you're facing?\n\nJohn: Our main issues are:\n1. Slow query performance - reports take hours to generate\n2. Data silos - marketing and sales data don't talk to each other\n3. Scaling concerns - we're growing 30% year over year\n\nJane: What's your timeline for this project?\n\nJohn: We'd like to have something in place by Q3. Budget-wise, we're looking\nat around $500K for the initial implementation.\n\nJane: That's helpful. Who are the key stakeholders we should involve?\n\nJohn: Besides myself as CTO, you'll want to talk to Sarah Chen, our VP of\nEngineering, and Mike Johnson, CFO.\n\n## Next Steps\n- Schedule technical deep-dive with engineering team\n- Prepare initial proposal for review"
+  ],
+  "input_reference_file_ids": [],
+  "input_urls": [],
+  "missing_info_items": [
+    "Industry segment",
+    "Company size",
+    "Budget range",
+    "Decision timeline",
+    "Specific KPIs and metrics"
+  ],
+  "error_message": null,
+  "error_type": null,
+  "retry_count": 0,
+  "cloud_consent_given": false,
+  "created_at": "2026-02-06T12:17:11.553972",
+  "updated_at": "2026-02-06T12:21:18.439124"
+}

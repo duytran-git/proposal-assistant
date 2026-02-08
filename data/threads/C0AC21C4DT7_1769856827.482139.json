@@ -1,0 +1,68 @@
+{
+  "thread_ts": "1769856827.482139",
+  "channel_id": "C0AC21C4DT7",
+  "user_id": "U0A331B8ZNW",
+  "channel_type": "channel",
+  "user_email": null,
+  "client_name": "acme",
+  "client_folder_id": "1gAfw6av6_FW5RQfkXpfoFDCYNusx0SpJ",
+  "analyse_folder_id": "1k_rC92ofehJe3-8dYXa_7i6qODRsXIVQ",
+  "proposals_folder_id": "1VwowwBnFSuoA2xSCaxryRfQ1qepsIC-b",
+  "deal_analysis_doc_id": "1TjojJC_9bTFgVJQwLc39rFPW7Kdqjalnpqrq6QXFVAs",
+  "deal_analysis_link": "https://docs.google.com/document/d/1TjojJC_9bTFgVJQwLc39rFPW7Kdqjalnpqrq6QXFVAs/edit?usp=drivesdk",
+  "deal_analysis_content": {
+    "opportunity_snapshot": {
+      "company": "Acme Corp",
+      "industry_segment": "Unknown / Not provided",
+      "size": "Unknown / Not provided",
+      "contacts": "John Smith (CTO), Sarah Chen (VP of Engineering), Mike Johnson (CFO)",
+      "opportunity_name": "Modernizing Data Infrastructure",
+      "stage_and_target_close": "Discovery, target close by Q3"
+    },
+    "problem_impact": {
+      "core_problem_statement": "Legacy data infrastructure with slow query performance, data silos, and scaling concerns.",
+      "business_impact": "Slow report generation times, lack of integrated marketing and sales data, inability to scale effectively."
+    },
+    "current_desired_state": {
+      "current_state": "Running on legacy systems that are 10 years old with slow query performance, data silos between departments, and scaling issues.",
+      "desired_future_state": "Faster report generation times, integrated marketing and sales data, scalable infrastructure to support growth."
+    },
+    "buying_dynamics": {
+      "stakeholders_power_map": "John Smith (CTO) - High influence; Sarah Chen (VP of Engineering) - High influence; Mike Johnson (CFO) - Moderate influence",
+      "decision_process_timing": "Q3 2024",
+      "perceived_risks": "High cost, integration challenges with legacy systems."
+    },
+    "renessai_fit": {
+      "how_renessai_solves_top_pains": "Renessai can provide modern data infrastructure solutions that improve query performance and integrate disparate data sources. They also offer scalable solutions to support Acme Corp's growth.",
+      "differentiation_vs_status_quo": "Modern technology versus outdated legacy systems, improved integration, and better scalability compared to current state.",
+      "delivery_phasing_idea": "Phase 1: Assessment of existing infrastructure; Phase 2: Design and implementation of new data architecture; Phase 3: Ongoing support and optimization."
+    },
+    "proof_next_actions": {
+      "proof_points_to_use": "Case studies from similar clients, references for successful modernization projects.",
+      "next_steps": "Schedule technical deep-dive with engineering team, prepare initial proposal for review."
+    }
+  },
+  "deal_analysis_version": 1,
+  "slides_deck_id": null,
+  "slides_deck_link": null,
+  "state": "ERROR",
+  "previous_state": "GENERATING_DECK",
+  "input_transcript_file_ids": [
+    "F0AC9ACD9M2"
+  ],
+  "input_transcript_content": [
+    "# Discovery Call - Acme Corp\nDate: 2024-01-15\nAttendees: John Smith (Acme), Jane Doe (Renessai)\n\n## Discussion\n\nJohn: Thanks for taking the time to meet with us. We're looking to modernize\nour data infrastructure. Currently we're running on legacy systems that are\nabout 10 years old.\n\nJane: I understand. Can you tell me more about the challenges you're facing?\n\nJohn: Our main issues are:\n1. Slow query performance - reports take hours to generate\n2. Data silos - marketing and sales data don't talk to each other\n3. Scaling concerns - we're growing 30% year over year\n\nJane: What's your timeline for this project?\n\nJohn: We'd like to have something in place by Q3. Budget-wise, we're looking\nat around $500K for the initial implementation.\n\nJane: That's helpful. Who are the key stakeholders we should involve?\n\nJohn: Besides myself as CTO, you'll want to talk to Sarah Chen, our VP of\nEngineering, and Mike Johnson, CFO.\n\n## Next Steps\n- Schedule technical deep-dive with engineering team\n- Prepare initial proposal for review"
+  ],
+  "input_reference_file_ids": [],
+  "input_urls": [],
+  "missing_info_items": [
+    "Industry segment",
+    "Company size"
+  ],
+  "error_message": "<HttpError 400 when requesting https://slides.googleapis.com/v1/presentations/1dMQykY36IOtDv1BLGw9RJig6XsYHFoTF6rfYGqm9oDc?fields=slides%28objectId%2CpageElements%28objectId%2Cplaceholder%28type%2Cindex%29%29%29&alt=json returned \"Request contains an invalid argument.\". Details: \"[{'@type': 'type.googleapis.com/google.rpc.BadRequest', 'fieldViolations': [{'field': 'slides(objectId,pageElements(objectId,placeholder(type,index)))', 'description': \"Error expanding 'fields' parameter. Cannot find matching fields for path 'slides.pageElements.placeholder.type'.\"}]}]\">",
+  "error_type": "SLIDES_ERROR",
+  "retry_count": 0,
+  "cloud_consent_given": false,
+  "created_at": "2026-01-31T10:53:48.649321",
+  "updated_at": "2026-01-31T10:57:08.699482"
+}

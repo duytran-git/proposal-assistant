@@ -1,0 +1,68 @@
+{
+  "thread_ts": "1769857576.636039",
+  "channel_id": "C0AC21C4DT7",
+  "user_id": "U0A331B8ZNW",
+  "channel_type": "channel",
+  "user_email": null,
+  "client_name": "acme",
+  "client_folder_id": "1gAfw6av6_FW5RQfkXpfoFDCYNusx0SpJ",
+  "analyse_folder_id": "1k_rC92ofehJe3-8dYXa_7i6qODRsXIVQ",
+  "proposals_folder_id": "1VwowwBnFSuoA2xSCaxryRfQ1qepsIC-b",
+  "deal_analysis_doc_id": "1VaBzGvWih1_v39gu9IpJVlMaocoImCGL8BNDkzS6i8U",
+  "deal_analysis_link": "https://docs.google.com/document/d/1VaBzGvWih1_v39gu9IpJVlMaocoImCGL8BNDkzS6i8U/edit?usp=drivesdk",
+  "deal_analysis_content": {
+    "opportunity_snapshot": {
+      "company": "Acme Corp",
+      "industry_segment": "Unknown / Not provided",
+      "size": "Unknown / Not provided",
+      "contacts": "John Smith (CTO), Sarah Chen (VP of Engineering), Mike Johnson (CFO)",
+      "opportunity_name": "Modernize Data Infrastructure",
+      "stage_and_target_close": "Discovery, Target Close: Q2"
+    },
+    "problem_impact": {
+      "core_problem_statement": "Legacy data infrastructure with slow query performance, data silos, and scaling concerns.",
+      "business_impact": "Risks include delayed decision-making due to slow reporting, inefficiencies from disconnected departments, and potential system failures as the company grows. Value includes improved operational efficiency, better data-driven decisions, and scalability for future growth."
+    },
+    "current_desired_state": {
+      "current_state": "Running on legacy systems that are 10 years old; reports take hours to generate due to slow query performance; marketing and sales data are in silos; scaling concerns as company grows at a rate of 30% year over year.",
+      "desired_future_state": "Outcomes include faster reporting, integrated data across departments, and scalable infrastructure. Must-haves: improved query performance, data integration between departments, scalability for growth. Nice-to-haves: advanced analytics capabilities. Non-negotiables: system reliability and security."
+    },
+    "buying_dynamics": {
+      "stakeholders_power_map": "John Smith (CTO) - High Influence; Sarah Chen (VP of Engineering) - Medium Influence; Mike Johnson (CFO) - High Influence",
+      "decision_process_timing": "Decision timeline: Q3 for initial implementation.",
+      "perceived_risks": "Risk of delayed project due to internal stakeholder approval process, budget constraints, and technical challenges."
+    },
+    "renessai_fit": {
+      "how_renessai_solves_top_pains": "Renessai can provide a modern data infrastructure solution that addresses slow query performance through optimized database design, integrates disparate data sources for better departmental collaboration, and scales efficiently to accommodate Acme Corp's growth.",
+      "differentiation_vs_status_quo": "Differentiation includes advanced analytics capabilities, cloud-based solutions for scalability, and professional services for seamless implementation. Status quo involves outdated technology with limited support and integration issues.",
+      "delivery_phasing_idea": "Phase 1: Initial assessment and planning; Phase 2: Data migration and integration; Phase 3: Optimization and deployment."
+    },
+    "proof_next_actions": {
+      "proof_points_to_use": "Case studies of similar clients who have successfully modernized their data infrastructure, testimonials from CTOs/CFOs on improved efficiency and scalability.",
+      "next_steps": "Schedule technical deep-dive with engineering team; Prepare initial proposal for review."
+    }
+  },
+  "deal_analysis_version": 1,
+  "slides_deck_id": "1VNdJJtvHB-9LszOvPftI3S4iMTR4UzSvhuZB-dDGe2w",
+  "slides_deck_link": "https://docs.google.com/presentation/d/1VNdJJtvHB-9LszOvPftI3S4iMTR4UzSvhuZB-dDGe2w/edit?usp=drivesdk",
+  "state": "DONE",
+  "previous_state": "GENERATING_DECK",
+  "input_transcript_file_ids": [
+    "F0ABQ9RLQNB"
+  ],
+  "input_transcript_content": [
+    "# Discovery Call - Acme Corp\nDate: 2024-01-15\nAttendees: John Smith (Acme), Jane Doe (Renessai)\n\n## Discussion\n\nJohn: Thanks for taking the time to meet with us. We're looking to modernize\nour data infrastructure. Currently we're running on legacy systems that are\nabout 10 years old.\n\nJane: I understand. Can you tell me more about the challenges you're facing?\n\nJohn: Our main issues are:\n1. Slow query performance - reports take hours to generate\n2. Data silos - marketing and sales data don't talk to each other\n3. Scaling concerns - we're growing 30% year over year\n\nJane: What's your timeline for this project?\n\nJohn: We'd like to have something in place by Q3. Budget-wise, we're looking\nat around $500K for the initial implementation.\n\nJane: That's helpful. Who are the key stakeholders we should involve?\n\nJohn: Besides myself as CTO, you'll want to talk to Sarah Chen, our VP of\nEngineering, and Mike Johnson, CFO.\n\n## Next Steps\n- Schedule technical deep-dive with engineering team\n- Prepare initial proposal for review"
+  ],
+  "input_reference_file_ids": [],
+  "input_urls": [],
+  "missing_info_items": [
+    "Industry segment",
+    "Company size"
+  ],
+  "error_message": null,
+  "error_type": null,
+  "retry_count": 0,
+  "cloud_consent_given": false,
+  "created_at": "2026-01-31T11:06:18.246181",
+  "updated_at": "2026-01-31T11:11:30.489156"
+}

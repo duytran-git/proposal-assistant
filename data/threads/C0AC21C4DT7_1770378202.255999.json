@@ -1,0 +1,70 @@
+{
+  "thread_ts": "1770378202.255999",
+  "channel_id": "C0AC21C4DT7",
+  "user_id": "U0A331B8ZNW",
+  "channel_type": "channel",
+  "user_email": null,
+  "client_name": "acme",
+  "client_folder_id": "1GrCpqOUnxu3PF93CVQGNoKqGi7FSjZZI",
+  "analyse_folder_id": "10NsUAkk4NKvAZ6FoHTcP6BlbioxVVBev",
+  "proposals_folder_id": "1vW4URtMOGF07fFHdEk3p8sNmCY0MPrJa",
+  "deal_analysis_doc_id": "1tXknMXqIWyf2JSVXZnaBI2hhhGSp0x3Xs7z_AaqQ-ns",
+  "deal_analysis_link": "https://docs.google.com/document/d/1tXknMXqIWyf2JSVXZnaBI2hhhGSp0x3Xs7z_AaqQ-ns/edit?usp=drivesdk",
+  "deal_analysis_content": {
+    "opportunity_snapshot": {
+      "company": "Acme Corp",
+      "industry_segment": "Unknown / Not provided",
+      "size": "Unknown / Not provided",
+      "contacts": "John Smith (CTO), Sarah Chen (VP of Engineering), Mike Johnson (CFO)",
+      "opportunity_name": "Modernizing Data Infrastructure at Acme Corp",
+      "stage_and_target_close": "Discovery, Target Close: Q2/Q3 2024"
+    },
+    "problem_impact": {
+      "core_problem_statement": "Legacy data infrastructure causing slow query performance, data silos, and scaling concerns.",
+      "business_impact": "Risks: Data inconsistencies leading to poor decision-making. Value: Improved operational efficiency and scalability. KPIs: Reduced report generation time, integrated sales and marketing data."
+    },
+    "current_desired_state": {
+      "current_state": "Running on 10-year-old legacy systems with slow query performance, data silos between departments.",
+      "desired_future_state": "Outcome: Modernized data infrastructure. Must-haves: Improved query performance, data integration across departments, scalability for growth. Nice-to-haves: Unknown / Not provided. Non-negotiables: Integration of sales and marketing data."
+    },
+    "buying_dynamics": {
+      "stakeholders_power_map": "John Smith (CTO) - High influence, Sarah Chen (VP of Engineering) - Medium to high influence, Mike Johnson (CFO) - Medium influence",
+      "decision_process_timing": "Q3 2024 for initial implementation.",
+      "perceived_risks": "Data inconsistencies leading to poor decision-making."
+    },
+    "renessai_fit": {
+      "how_renessai_solves_top_pains": "Renessai can provide a modern data infrastructure solution that addresses slow query performance, integrates disparate data sources, and scales with Acme Corp's growth.",
+      "differentiation_vs_status_quo": "Differentiation: Renessai offers cutting-edge technology and expertise to replace outdated systems. Status Quo: Current legacy systems are inefficient and do not scale well.",
+      "delivery_phasing_idea": "Phased delivery starting with a pilot project in Q2, followed by full-scale implementation by Q3."
+    },
+    "proof_next_actions": {
+      "proof_points_to_use": "Case studies of similar modernization projects, testimonials from existing clients who have successfully transitioned to new data infrastructure.",
+      "next_steps": "Schedule technical deep-dive with engineering team, prepare initial proposal for review."
+    }
+  },
+  "deal_analysis_version": 1,
+  "slides_deck_id": "1-eUIgaTdeTVqafDkTVNelkOepPj64Yok3SmZglTwPtI",
+  "slides_deck_link": "https://docs.google.com/presentation/d/1-eUIgaTdeTVqafDkTVNelkOepPj64Yok3SmZglTwPtI/edit?usp=drivesdk",
+  "state": "DONE",
+  "previous_state": "GENERATING_DECK",
+  "input_transcript_file_ids": [
+    "F0ACZHRDKL7"
+  ],
+  "input_transcript_content": [
+    "# Discovery Call - Acme Corp\nDate: 2024-01-15\nAttendees: John Smith (Acme), Jane Doe (Renessai)\n\n## Discussion\n\nJohn: Thanks for taking the time to meet with us. We're looking to modernize\nour data infrastructure. Currently we're running on legacy systems that are\nabout 10 years old.\n\nJane: I understand. Can you tell me more about the challenges you're facing?\n\nJohn: Our main issues are:\n1. Slow query performance - reports take hours to generate\n2. Data silos - marketing and sales data don't talk to each other\n3. Scaling concerns - we're growing 30% year over year\n\nJane: What's your timeline for this project?\n\nJohn: We'd like to have something in place by Q3. Budget-wise, we're looking\nat around $500K for the initial implementation.\n\nJane: That's helpful. Who are the key stakeholders we should involve?\n\nJohn: Besides myself as CTO, you'll want to talk to Sarah Chen, our VP of\nEngineering, and Mike Johnson, CFO.\n\n## Next Steps\n- Schedule technical deep-dive with engineering team\n- Prepare initial proposal for review"
+  ],
+  "input_reference_file_ids": [],
+  "input_urls": [],
+  "missing_info_items": [
+    "Industry segment",
+    "Company size",
+    "Budget range",
+    "Decision timeline"
+  ],
+  "error_message": null,
+  "error_type": null,
+  "retry_count": 0,
+  "cloud_consent_given": false,
+  "created_at": "2026-02-06T11:43:22.993699",
+  "updated_at": "2026-02-06T11:48:18.635105"
+}

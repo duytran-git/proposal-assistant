@@ -1,0 +1,39 @@
+{
+  "deal_analysis": {
+    "opportunity_snapshot": {
+      "company": "Acme Corp",
+      "industry_segment": "Manufacturing",
+      "size": "500 employees, €50M revenue",
+      "contacts": "Jane Smith (VP Engineering), Bob Jones (CTO)",
+      "opportunity_name": "Acme Digital Transformation",
+      "stage_and_target_close": "Discovery / Q2 2025"
+    },
+    "problem_impact": {
+      "core_problem_statement": "Legacy ERP system causing production delays and manual reporting overhead.",
+      "business_impact": "20% slower order-to-delivery cycle; 15 hours/week manual reporting; risk of losing key accounts"
+    },
+    "current_desired_state": {
+      "current_state": "SAP R/3 on-prem, manual Excel reports, no real-time dashboards",
+      "desired_future_state": "Cloud ERP with real-time analytics, automated reporting, mobile access for floor managers"
+    },
+    "buying_dynamics": {
+      "stakeholders_power_map": "CTO (decision maker), VP Engineering (champion), CFO (budget holder)",
+      "decision_process_timing": "Board approval needed, targeting Q2 decision",
+      "perceived_risks": "Data migration complexity, change management for 200+ users"
+    },
+    "renessai_fit": {
+      "how_renessai_solves_top_pains": "Proven ERP migration methodology; analytics accelerator for real-time dashboards",
+      "differentiation_vs_status_quo": "End-to-end delivery vs. piecemeal vendors; manufacturing domain expertise",
+      "delivery_phasing_idea": "Phase 1: Assessment & roadmap (4 weeks), Phase 2: Core migration (12 weeks), Phase 3: Analytics layer (6 weeks)"
+    },
+    "proof_next_actions": {
+      "proof_points_to_use": "Similar transformation for Nordic Manufacturing Co (30% cycle time reduction)",
+      "next_steps": "Schedule technical deep-dive with CTO; prepare tailored demo environment"
+    }
+  },
+  "missing_info": [
+    "Budget range",
+    "Competing vendors under evaluation",
+    "Contract renewal timeline for current SAP license"
+  ]
+}

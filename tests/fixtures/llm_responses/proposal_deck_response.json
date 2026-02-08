@@ -1,0 +1,56 @@
+{
+  "content": {
+    "slide_1_cover": {
+      "center_title": "Acme Corp Digital Transformation",
+      "subtitle": "Proposal for Cloud ERP & Analytics Platform"
+    },
+    "slide_2_executive_summary": {
+      "title": "Executive Summary",
+      "body": "Acme Corp faces critical operational challenges with legacy systems causing 20% slower order-to-delivery cycles. Our proposed solution delivers a modern cloud ERP with real-time analytics, enabling data-driven decisions and operational excellence. Expected outcome: 30% improvement in cycle times within 6 months."
+    },
+    "slide_3_client_context": {
+      "title": "Client Context",
+      "body_left": "Company Profile:\n- Manufacturing sector\n- 500 employees\n- \u20ac50M annual revenue\n- 200+ system users",
+      "body_right": "Key Stakeholders:\n- CTO (Decision Maker)\n- VP Engineering (Champion)\n- CFO (Budget Holder)"
+    },
+    "slide_4_challenges": {
+      "title": "Current Challenges",
+      "body": "1. Legacy ERP causing production delays\n2. Manual Excel reporting (15 hrs/week)\n3. No real-time dashboards\n4. Risk of losing key accounts\n5. Complex data migration concerns"
+    },
+    "slide_5_proposed_solution": {
+      "title": "Our Solution",
+      "subtitle": "End-to-End Digital Transformation",
+      "body": "A comprehensive cloud ERP migration with integrated analytics platform, designed specifically for manufacturing operations."
+    },
+    "slide_6_solution_scope": {
+      "title": "Solution Scope",
+      "body": "Core Components:\n- Cloud ERP implementation\n- Real-time analytics dashboards\n- Automated reporting engine\n- Mobile access for floor managers\n- Data migration & validation"
+    },
+    "slide_7_implementation": {
+      "title": "Implementation Approach",
+      "body_left": "Phase 1 (4 weeks):\n- Assessment\n- Roadmap design\n- Quick wins identification",
+      "body_right": "Phase 2-3 (18 weeks):\n- Core ERP migration\n- Analytics layer\n- User training"
+    },
+    "slide_8_value_case": {
+      "title": "Value Case",
+      "body": "30%\nCycle Time Reduction\n(Based on Nordic Manufacturing Co. results)"
+    },
+    "slide_9_commercials": {
+      "title": "Commercial Overview",
+      "body": "Investment Structure:\n- Phase 1: Assessment & Roadmap\n- Phase 2: Core Implementation\n- Phase 3: Analytics & Optimization\n\nFlexible engagement model with milestone-based payments."
+    },
+    "slide_10_risk_mitigation": {
+      "title": "Risk Mitigation",
+      "body_left": "Identified Risks:\n- Data migration complexity\n- Change management\n- Integration challenges",
+      "body_right": "Mitigation Strategy:\n- Proven methodology\n- Dedicated change lead\n- Phased rollout approach"
+    },
+    "slide_11_proof_of_success": {
+      "title": "Proof of Success",
+      "body": "Nordic Manufacturing Co. Case Study:\n- Similar transformation scope\n- 30% cycle time reduction achieved\n- Full ROI within 12 months\n- 95% user adoption rate"
+    },
+    "slide_12_next_steps": {
+      "title": "Recommended Next Steps",
+      "body": "1. Schedule technical deep-dive with CTO\n2. Prepare tailored demo environment\n3. Define Phase 1 scope and timeline\n4. Initiate commercial discussions\n\nProposed kickoff: Q2 2025"
+    }
+  }
+}
