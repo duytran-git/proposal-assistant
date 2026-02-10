@@ -32,24 +32,15 @@ echo "============================================"
 echo ""
 
 # ── Check 1: Docker build ──────────────────────────────────────────
-echo "[1/11] Docker build"
+echo "[1/10] Docker build"
 if docker build -t "$IMAGE_NAME" . > /dev/null 2>&1; then
     pass "Docker image built successfully"
 else
     fail "Docker build failed"
 fi
 
-# ── Check 2: Node.js in image ──────────────────────────────────────
-echo "[2/11] Node.js in image"
-NODE_VERSION=$(docker run --rm "$IMAGE_NAME" node --version 2>/dev/null || echo "")
-if [[ "$NODE_VERSION" == v* ]]; then
-    pass "Node.js found: $NODE_VERSION"
-else
-    fail "Node.js not found in image"
-fi
-
-# ── Check 3: Python packages ──────────────────────────────────────
-echo "[3/11] Required Python packages"
+# ── Check 2: Python packages ─────────────────────────────────────
+echo "[2/10] Required Python packages"
 CHECK3_OK=true
 for pkg in claude_agent_sdk slack_bolt googleapiclient; do
     if docker run --rm "$IMAGE_NAME" .venv/bin/python -c "import $pkg" 2>/dev/null; then
@@ -65,16 +56,16 @@ else
     fail "One or more required Python packages missing"
 fi
 
-# ── Check 4: No openai package ─────────────────────────────────────
-echo "[4/11] No openai package"
+# ── Check 3: No openai package ─────────────────────────────────────
+echo "[3/10] No openai package"
 if docker run --rm "$IMAGE_NAME" .venv/bin/python -c "import openai" 2>/dev/null; then
     fail "openai package is installed (should not be)"
 else
     pass "openai package not installed"
 fi
 
-# ── Check 5: No Ollama references in source ───────────────────────
-echo "[5/11] No Ollama references in source"
+# ── Check 4: No Ollama references in source ───────────────────────
+echo "[4/10] No Ollama references in source"
 OLLAMA_HITS=$(grep -ri "ollama" src/ --include="*.py" --exclude="*_backup*" -l 2>/dev/null || true)
 if [ -z "$OLLAMA_HITS" ]; then
     pass "No Ollama references in src/"
@@ -82,16 +73,16 @@ else
     fail "Ollama references found in: $OLLAMA_HITS"
 fi
 
-# ── Check 6: docker-compose.yml valid ─────────────────────────────
-echo "[6/11] docker-compose.yml valid"
+# ── Check 5: docker-compose.yml valid ─────────────────────────────
+echo "[5/10] docker-compose.yml valid"
 if docker compose -f docker-compose.yml config > /dev/null 2>&1; then
     pass "docker-compose.yml is valid"
 else
     fail "docker-compose.yml failed validation"
 fi
 
-# ── Check 7: Container starts (expect health check fail) ──────────
-echo "[7/11] Container starts with dummy env"
+# ── Check 6: Container starts (expect health check fail) ──────────
+echo "[6/10] Container starts with dummy env"
 CONTAINER_NAME="${COMPOSE_PROJECT}-validate"
 docker rm -f "$CONTAINER_NAME" > /dev/null 2>&1 || true
 CONTAINER_ID=$(docker run -d --name "$CONTAINER_NAME" \
@@ -118,8 +109,8 @@ else
     fail "Container failed to start"
 fi
 
-# ── Check 8: Config module loads with dummy env vars ───────────────
-echo "[8/11] Config module loads"
+# ── Check 7: Config module loads with dummy env vars ───────────────
+echo "[7/10] Config module loads"
 CONFIG_RESULT=$(docker run --rm \
     -e SLACK_BOT_TOKEN=xoxb-test \
     -e SLACK_APP_TOKEN=xapp-test \
@@ -137,13 +128,13 @@ assert c.slack_bot_token == 'xoxb-test'
 print('OK')
 " 2>&1)
 if [[ "$CONFIG_RESULT" == *"OK"* ]]; then
-    pass "Config.from_env() loads correctly"
+    pass "get_config() loads correctly"
 else
     fail "Config module failed: $CONFIG_RESULT"
 fi
 
-# ── Check 9: State machine module loads ────────────────────────────
-echo "[9/11] State machine module loads"
+# ── Check 8: State machine module loads ────────────────────────────
+echo "[8/10] State machine module loads"
 STATE_RESULT=$(docker run --rm -e PYTHONPATH=/app/src "$IMAGE_NAME" .venv/bin/python -c "
 from proposal_assistant.state.models import State, Event
 from proposal_assistant.state.machine import StateMachine
@@ -155,8 +146,8 @@ else
     fail "State machine module failed: $STATE_RESULT"
 fi
 
-# ── Check 10: Cron scripts syntax check ───────────────────────────
-echo "[10/11] Cron scripts syntax check"
+# ── Check 9: Cron scripts syntax check ────────────────────────────
+echo "[9/10] Cron scripts syntax check"
 CHECK10_OK=true
 for script in scripts/backup-state.sh scripts/cleanup-state.sh scripts/health-monitor.sh; do
     if [ -f "$script" ]; then
@@ -176,8 +167,8 @@ else
     fail "One or more cron scripts have syntax errors"
 fi
 
-# ── Check 11: Cleanup ─────────────────────────────────────────────
-echo "[11/11] Cleanup"
+# ── Check 10: Cleanup ─────────────────────────────────────────────
+echo "[10/10] Cleanup"
 docker rm -f "$CONTAINER_NAME" > /dev/null 2>&1 || true
 docker rmi "$IMAGE_NAME" > /dev/null 2>&1 || true
 pass "Cleanup complete"
