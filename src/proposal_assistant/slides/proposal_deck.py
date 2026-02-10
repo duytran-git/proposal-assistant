@@ -183,7 +183,7 @@ def _build_shape_lookup(
     slide_page: dict[str, Any],
 ) -> dict[tuple[str, int], str]:
     """Build a lookup from (placeholder_type, index) to shape object ID.
-    
+
     Handles both native Google Slides placeholders and converted PPTX shapes.
     """
     lookup: dict[tuple[str, int], str] = {}

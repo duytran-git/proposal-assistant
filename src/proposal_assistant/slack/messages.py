@@ -41,9 +41,7 @@ def format_analyzing() -> dict[str, Any]:
     }
 
 
-def format_deal_analysis_complete(
-    link: str, missing_items: list[str]
-) -> dict[str, Any]:
+def format_deal_analysis_complete(link: str, missing_items: list[str]) -> dict[str, Any]:
     """Format the deal analysis completion message.
 
     Args:
@@ -116,6 +114,11 @@ def format_approval_buttons() -> dict[str, Any]:
                 "text": {"type": "plain_text", "text": "No", "emoji": True},
                 "style": "danger",
                 "action_id": "reject_deck",
+            },
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "Regenerate", "emoji": True},
+                "action_id": "regenerate_analysis",
             },
         ],
     }
@@ -241,7 +244,7 @@ def format_fetch_failures(failed_urls: list[str]) -> dict[str, Any]:
 def format_cloud_consent() -> dict[str, Any]:
     """Format the cloud consent message with Yes/No buttons.
 
-    Shown when local Ollama is unavailable and user can opt into cloud AI.
+    Shown when Claude API is unavailable and user can opt into retry.
 
     Returns:
         Slack Block Kit message with consent prompt and buttons.

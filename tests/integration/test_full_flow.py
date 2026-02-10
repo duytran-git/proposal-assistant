@@ -39,8 +39,8 @@ def mock_config():
     config.google_service_account_json = '{"type": "service_account"}'
     config.google_drive_root_folder_id = "root_folder_123"
     config.google_slides_template_id = "template_123"
-    config.ollama_base_url = "http://localhost:11434"
-    config.ollama_model = "llama3.2"
+    config.anthropic_api_key = "sk-ant-test-key"
+    config.anthropic_model = "claude-sonnet-4-5-20250514"
     return config
 
 
@@ -103,7 +103,7 @@ class TestFullAnalyseFlow:
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
             ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch(
                 "proposal_assistant.slack.handlers.populate_deal_analysis"
@@ -146,13 +146,11 @@ class TestFullAnalyseFlow:
             }
 
             # Mock LLM response
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": llm_response["deal_analysis"],
                 "missing_info": llm_response["missing_info"],
                 "raw_response": json.dumps(llm_response),
             }
-            LLMClient.return_value = mock_llm
 
             # Mock Docs creation
             mock_docs = MagicMock()
@@ -233,7 +231,7 @@ class TestFullAnalyseFlow:
             validate.assert_called_once()
             extract.assert_called_once_with("acme-corp-discovery-call.md")
             get_folders.assert_called_once()
-            mock_llm.generate_deal_analysis.assert_called_once()
+            mock_generate_deal.assert_called_once()
             mock_docs.create_document.assert_called_once_with(
                 "acme-corp - Deal Analysis",
                 "folder_analyse_123",
@@ -263,7 +261,7 @@ class TestFullAnalyseFlow:
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
             ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
@@ -285,12 +283,10 @@ class TestFullAnalyseFlow:
                 "proposals_folder_id": "p1",
             }
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": llm_response["deal_analysis"],
                 "missing_info": ["Budget range", "Competing vendors"],
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = ("doc_id", "https://link")
@@ -337,7 +333,7 @@ class TestFullAnalyseFlow:
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
             ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
@@ -359,12 +355,10 @@ class TestFullAnalyseFlow:
                 "proposals_folder_id": "p1",
             }
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": llm_response["deal_analysis"],
                 "missing_info": [],  # No missing info
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = ("doc_id", "https://link")
@@ -390,7 +384,7 @@ class TestFullFlowErrorHandling:
         transcript_content,
     ):
         """LLM error during analysis transitions state to FAILED."""
-        from proposal_assistant.llm.client import LLMError
+        from proposal_assistant.llm.agent import LLMError
 
         state_transitions = []
 
@@ -407,7 +401,7 @@ class TestFullFlowErrorHandling:
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
             ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
         ):
             get_config.return_value = mock_config
 
@@ -437,11 +431,9 @@ class TestFullFlowErrorHandling:
             }
 
             # LLM raises error
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.side_effect = LLMError(
+            mock_generate_deal.side_effect = LLMError(
                 "Service unavailable", error_type="LLM_ERROR"
             )
-            LLMClient.return_value = mock_llm
 
             handle_analyse_command(slack_message_with_file, mock_say, mock_client)
 
@@ -541,7 +533,7 @@ class TestFullFlowErrorHandling:
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
             ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
         ):
             get_config.return_value = mock_config
@@ -571,12 +563,10 @@ class TestFullFlowErrorHandling:
                 "proposals_folder_id": "p1",
             }
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": llm_response["deal_analysis"],
                 "missing_info": [],
             }
-            LLMClient.return_value = mock_llm
 
             # Docs raises error
             mock_docs = MagicMock()
@@ -623,7 +613,7 @@ class TestFullFlowStateVerification:
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
             ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
@@ -655,12 +645,10 @@ class TestFullFlowStateVerification:
                 "proposals_folder_id": "folder_proposals_xyz",
             }
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": llm_response["deal_analysis"],
                 "missing_info": llm_response["missing_info"],
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = (

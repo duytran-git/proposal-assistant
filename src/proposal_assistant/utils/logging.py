@@ -98,7 +98,15 @@ class StructuredLogger:
 
         # Create log record with extra fields
         record_kwargs: dict[str, Any] = {}
-        for key in ["thread_ts", "state", "duration_ms", "channel_id", "user_id", "event", "error_type"]:
+        for key in [
+            "thread_ts",
+            "state",
+            "duration_ms",
+            "channel_id",
+            "user_id",
+            "event",
+            "error_type",
+        ]:
             if key in extra:
                 record_kwargs[key] = extra.pop(key)
 

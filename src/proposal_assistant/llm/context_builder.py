@@ -249,9 +249,8 @@ class ContextBuildResult:
 class ContextBuilder:
     """Assembles transcript, references, and web content within token limits.
 
-    Uses character-based token estimation (~4 chars per token) appropriate
-    for the qwen2.5:14b model on Ollama. Token limits are guidelines from
-    the technical design with generous output reserve.
+    Uses character-based token estimation (~4 chars per token). Token limits
+    are guidelines from the technical design with generous output reserve.
 
     Attributes:
         MAX_TRANSCRIPT_TOKENS: Maximum token budget for transcript content.
@@ -415,9 +414,7 @@ class ContextBuilder:
         summaries: list[str] = []
         for i, chunk in enumerate(chunks, start=1):
             chunk_tokens = count_tokens(chunk)
-            logger.debug(
-                "Summarizing chunk %d/%d (%d tokens)", i, len(chunks), chunk_tokens
-            )
+            logger.debug("Summarizing chunk %d/%d (%d tokens)", i, len(chunks), chunk_tokens)
 
             if on_status and len(chunks) > 1:
                 on_status(f"Summarizing part {i}/{len(chunks)}...")

@@ -1,0 +1,19 @@
+version: "3.9"
+services:
+  proposal-assistant:
+    build: .
+    container_name: proposal-assistant-dev
+    env_file: .env
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./src:/app/src          # Hot-reload source
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge

@@ -16,10 +16,8 @@ def mock_config():
         slack_signing_secret="test-signing-secret",
         google_service_account_json="{}",
         google_drive_root_folder_id="folder-id",
-        ollama_base_url="http://localhost:11434/v1",
-        ollama_model="test-model",
+        anthropic_api_key="sk-ant-test-key",
         proposal_template_slide_id="slide-id",
-        ollama_num_ctx=32768,
     )
 
 

@@ -45,8 +45,8 @@ def mock_config():
     config.google_service_account_json = '{"type": "service_account"}'
     config.google_drive_root_folder_id = "root_folder_123"
     config.google_slides_template_id = "template_123"
-    config.ollama_base_url = "http://localhost:11434"
-    config.ollama_model = "llama3.2"
+    config.anthropic_api_key = "sk-ant-test-key"
+    config.anthropic_model = "claude-sonnet-4-5-20250514"
     return config
 
 
@@ -123,7 +123,12 @@ class TestHappyPath:
             patch(
                 "proposal_assistant.slack.handlers.get_or_create_client_folder"
             ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch(
+                "proposal_assistant.slack.handlers.generate_deal_analysis"
+            ) as mock_generate_deal,
+            patch(
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
             patch(
@@ -196,17 +201,15 @@ class TestHappyPath:
             }
 
             # Mock LLM responses (both deal analysis and proposal deck)
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": deal_analysis_response["deal_analysis"],
                 "missing_info": deal_analysis_response["missing_info"],
                 "raw_response": json.dumps(deal_analysis_response),
             }
-            mock_llm.generate_proposal_deck_content.return_value = {
+            mock_generate_proposal.return_value = {
                 "content": proposal_deck_response["content"],
                 "raw_response": json.dumps(proposal_deck_response),
             }
-            LLMClient.return_value = mock_llm
 
             # Mock Docs creation
             mock_docs = MagicMock()
@@ -314,8 +317,8 @@ class TestHappyPath:
             # ─────────────────────────────────────────────────────────────────
             # VERIFY: LLM called correctly for both phases
             # ─────────────────────────────────────────────────────────────────
-            mock_llm.generate_deal_analysis.assert_called_once()
-            mock_llm.generate_proposal_deck_content.assert_called_once_with(
+            mock_generate_deal.assert_called_once()
+            mock_generate_proposal.assert_called_once_with(
                 deal_analysis_response["deal_analysis"]
             )
 

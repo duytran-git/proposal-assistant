@@ -1,4 +1,4 @@
-# LLM Coding Task (Ollama + Qwen2.5)
+# LLM Coding Task (Anthropic Claude API)
 
 Generate a complete Product Requirements Document ([prd.md](http://prd.md)) for the Proposal Assistant Slack Bot. The PRD must include:
 
@@ -27,7 +27,7 @@ Use ONLY the information in this context file. If something is unspecified, flag
 | Workflow/tooling | uv |
 | Slack | Bolt for Python (slack_bolt) |
 | Google APIs | google-api-python-client, google-auth (service account) |
-| LLM | Ollama (local) + openai Python SDK (OpenAI-compatible endpoint) |
+| LLM | Anthropic Claude API + anthropic Python SDK |
 | Config/env | OS env vars in production; .env in local dev (optional: python-dotenv) |
 | Testing | pytest |
 | Lint/format | ruff (lint) + black (format) |
@@ -74,7 +74,7 @@ src/proposal_assistant/
 │
 ├── llm/
 │   ├── __init__.py
-│   ├── client.py          # LLM API client (Ollama / OpenAI-compatible)
+│   ├── client.py          # LLM API client (Anthropic SDK)
 │   ├── prompts/
 │   │   ├── deal_analysis.py   # Prompts for Deal Analysis
 │   │   └── proposal_deck.py   # Prompts for Proposal Deck
@@ -453,22 +453,18 @@ This bot is intentionally a two-step process with a hard stop in the middle.
 
 | Setting | Value |
 | --- | --- |
-| Primary model | qwen2.5:14b (local via Ollama) |
-| API | Ollama local server (OpenAI-compatible Chat Completions API) |
-| Environment variables | OLLAMA_BASE_URL, OLLAMA_MODEL |
+| Primary model | Claude Sonnet 4.5 (`claude-sonnet-4-5-20250514`) |
+| API | Anthropic REST API |
+| Environment variables | ANTHROPIC_API_KEY |
 
-### Local Setup (Developer)
+### Setup (Developer)
 
-```bash
-# Install Ollama (per your OS) and pull the model
-ollama pull qwen2.5:14b
-```
+Set the `ANTHROPIC_API_KEY` environment variable with your API key from [console.anthropic.com](https://console.anthropic.com). No local model installation required.
 
 **Notes:**
 
-- The bot calls Ollama on the same machine via OLLAMA_BASE_URL (default: <http://localhost:11434/v1>).
-- If you need larger context windows for long transcripts, raise Ollama's context setting (often called num_ctx) in your local environment.
-- \[TBD - decide the default num_ctx for dev/prod\]
+- The bot calls the Anthropic API via HTTPS. No local GPU or model required.
+- Claude Sonnet 4.5 supports a 200K context window, so chunking is rarely needed.
 
 ### Context Assembly Strategy
 
@@ -482,17 +478,15 @@ The LLM receives a structured prompt with these components (in order):
 
 ### Token Management
 
-Qwen2.5 runs locally via Ollama, so the usable context window depends on your Ollama configuration (num_ctx) and available RAM/VRAM.
-
-**Default Ollama context is often 4K; for this project, set num_ctx to at least 32K in local dev, and tune upward only if your machine can handle it.**
+Claude Sonnet 4.5 provides a 200K context window via the Anthropic API, so token management is much simpler than with local models.
 
 | Component | Budget (guideline) |
 | --- | --- |
-| Transcript | up to 16K–24K tokens (chunk/summarize if larger) |
-| References | up to 6K–10K tokens (summarize if larger) |
-| Web content | up to 4K–6K tokens (extract only relevant sections) |
-| Reserve for output | 4K–8K tokens |
-| Target max context | 32K tokens (num_ctx=32768) |
+| Transcript | up to 100K+ tokens (chunking rarely needed) |
+| References | up to 20K tokens |
+| Web content | up to 10K tokens |
+| Reserve for output | 8K tokens |
+| Max context window | 200K tokens (Claude Sonnet 4.5) |
 
 ### Prompt Files
 
@@ -510,29 +504,27 @@ src/proposal_assistant/llm/prompts/
 
 ```python
 import os
-from openai import OpenAI
+import anthropic
 
-# Ollama exposes an OpenAI-compatible endpoint when you use /v1
-client = OpenAI(
-    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-    api_key=os.getenv("OLLAMA_API_KEY", "ollama")  # not used by Ollama; required by SDK
+client = anthropic.Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
 )
 
-model = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
+model = "claude-sonnet-4-5-20250514"
 
 context = build_context(transcript, references, web_content)
 
-response = client.chat.completions.create(
+response = client.messages.create(
     model=model,
+    system=SYSTEM_SALES_ADVISOR,
     messages=[
-        {"role": "system", "content": SYSTEM_SALES_ADVISOR},
         {"role": "user", "content": context + DEAL_ANALYSIS_TEMPLATE},
     ],
     temperature=0.2,
     max_tokens=6000,
 )
 
-text_out = response.choices[0].message.content
+text_out = response.content[0].text
 ```
 
 ---
@@ -563,12 +555,8 @@ SLACK_SIGNING_SECRET=...
 GOOGLE_SERVICE_ACCOUNT_JSON={"type": "service_account", ...}  # Or path to JSON file
 GOOGLE_DRIVE_ROOT_FOLDER_ID=1ABC...   # "Clients" folder ID
 
-# LLM (local)
-OLLAMA_BASE_URL=http://localhost:11434/v1
-OLLAMA_MODEL=qwen2.5:14b
-
-# Optional (performance tuning)
-OLLAMA_NUM_CTX=32768
+# LLM (Anthropic Claude API)
+ANTHROPIC_API_KEY=sk-ant-...
 
 # Templates
 PROPOSAL_TEMPLATE_SLIDE_ID=1XYZ...    # Renessai Proposal Template ID
@@ -762,7 +750,7 @@ Quantifiable goals to measure the bot's effectiveness:
 | Slack acknowledgment | &lt; 3 seconds | Bot should react/reply quickly to show it's working |
 | Deal Analysis generation | &lt; 60 seconds | End-to-end from inputs received to doc created |
 | Proposal Deck generation | &lt; 120 seconds | Includes template duplication and content population |
-| LLM response time | &lt; 45 seconds | For qwen2.5:14b with 32K context |
+| LLM response time | &lt; 45 seconds | For Claude Sonnet 4.5 via Anthropic API |
 | Concurrent users | 5 simultaneous requests | Based on team size; scale as needed |
 
 ### 19.2 Security
@@ -928,7 +916,7 @@ class SlidesClient:
         """
 ```
 
-### 20.6 Bot → LLM (Ollama)
+### 20.6 Bot → LLM (Anthropic API)
 
 ```python
 # Interface: LLMClient
@@ -1186,7 +1174,7 @@ Items explicitly flagged as needing product/engineering decisions:
 
 | Item | Context | Default Assumption |
 | --- | --- | --- |
-| Default `num_ctx` for Ollama | Section 12 - Token management | 32768 for dev; TBD for prod based on hardware |
+| ~~Default `num_ctx` for Ollama~~ | ~~Section 12 - Token management~~ | N/A — Claude Sonnet 4.5 has 200K context window |
 | Maximum transcript size | Before chunking/summarization required | 16K tokens (\~12K words) |
 | Retry limit for LLM calls | Error handling | 3 retries with exponential backoff |
 | State storage backend | JSON files vs SQLite vs Redis | JSON files for MVP |
@@ -1209,7 +1197,7 @@ Items explicitly flagged as needing product/engineering decisions:
 | Google Drive API | Store/retrieve files | Cannot access inputs or save outputs |
 | Google Docs API | Create Deal Analysis | Cannot generate Deal Analysis |
 | Google Slides API | Create Proposal Deck | Cannot generate Proposal Deck |
-| Ollama (local) | LLM inference | Cannot generate content |
+| Anthropic API (cloud) | LLM inference | Cannot generate content |
 
 ### 25.2 Python Dependencies
 
@@ -1220,7 +1208,7 @@ dependencies = [
     "slack-bolt>=1.18.0",
     "google-api-python-client>=2.100.0",
     "google-auth>=2.23.0",
-    "openai>=1.0.0",  # For Ollama OpenAI-compatible API
+    "anthropic>=0.18.0",  # Anthropic Python SDK for Claude API
     "python-dotenv>=1.0.0",  # Optional, for local dev
 ]
 
@@ -1240,9 +1228,8 @@ dev = [
 | Component | Requirement |
 | --- | --- |
 | Python | 3.12+ |
-| Ollama | Latest stable, with qwen2.5:14b model pulled |
-| RAM | 16GB minimum (32GB recommended for 14B model) |
-| GPU | Optional but recommended (NVIDIA with CUDA for faster inference) |
+| Anthropic API key | From [console.anthropic.com](https://console.anthropic.com) |
+| RAM | 4-8GB (no local model required) |
 | Network | Outbound HTTPS to Slack and Google APIs |
 
 ---

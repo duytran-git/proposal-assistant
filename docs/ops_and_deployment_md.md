@@ -16,13 +16,13 @@
 │                        PRODUCTION SERVER                            │
 │                    (Single VM / Dedicated Host)                      │
 │                                                                     │
-│  ┌─────────────────────┐     ┌─────────────────────────────────┐   │
-│  │  proposal-assistant  │     │         ollama                  │   │
-│  │  (Docker container)  │────▶│  (Docker container or native)   │   │
-│  │                     │     │  qwen2.5:14b loaded              │   │
-│  │  • Slack Bot (Bolt) │     │  Port: 11434                     │   │
-│  │  • State (JSON/vol) │     │  GPU: passthrough (if available) │   │
-│  │  • Port: internal   │     └─────────────────────────────────┘   │
+│  ┌─────────────────────┐                                            │
+│  │  proposal-assistant  │                                            │
+│  │  (Docker container)  │                                            │
+│  │                     │                                            │
+│  │  • Slack Bot (Bolt) │                                            │
+│  │  • State (JSON/vol) │                                            │
+│  │  • Port: internal   │                                            │
 │  └────────┬────────────┘                                            │
 │           │                                                         │
 │           │ HTTPS (outbound only)                                   │
@@ -30,10 +30,10 @@
             │
             ▼
 ┌───────────────────┐  ┌────────────────────┐  ┌──────────────────┐
-│    Slack API       │  │  Google Cloud APIs  │  │ Cloud LLM (opt)  │
-│  • Socket Mode     │  │  • Drive v3         │  │ • OpenAI         │
-│  • Web API         │  │  • Docs v1          │  │ • Anthropic      │
-│  • Interactive     │  │  • Slides v1        │  │ (fallback only)  │
+│    Slack API       │  │  Google Cloud APIs  │  │  Claude API      │
+│  • Socket Mode     │  │  • Drive v3         │  │  • Anthropic     │
+│  • Web API         │  │  • Docs v1          │  │  • Claude Sonnet │
+│  • Interactive     │  │  • Slides v1        │  │    4.5           │
 └───────────────────┘  └────────────────────┘  └──────────────────┘
 ```
 
@@ -41,18 +41,17 @@
 
 | Environment | Purpose | LLM Backend | State Storage | Drive Folder |
 | --- | --- | --- | --- | --- |
-| **development** | Local dev + unit tests | Ollama local (qwen2.5:14b) | JSON files (`data/`) | Test folders only |
-| **staging** | Integration testing, pre-release validation | Ollama on staging server | JSON files (Docker volume) | `/Clients/_staging/` subfolder |
-| **production** | Live usage by Renessai team | Ollama on prod server (GPU recommended) | JSON files (Docker volume) → SQLite (post-MVP) | `/Clients/` (real data) |
+| **development** | Local dev + unit tests | Claude API (Claude Sonnet 4.5) | JSON files (`data/`) | Test folders only |
+| **staging** | Integration testing, pre-release validation | Claude API (Claude Sonnet 4.5) | JSON files (Docker volume) | `/Clients/_staging/` subfolder |
+| **production** | Live usage by Renessai team | Claude API (Claude Sonnet 4.5) | JSON files (Docker volume) → SQLite (post-MVP) | `/Clients/` (real data) |
 
 ### 1.3 Hardware Requirements
 
 | Component | Minimum | Recommended | Notes |
 | --- | --- | --- | --- |
-| CPU | 4 cores | 8+ cores | Ollama uses CPU if no GPU |
-| RAM | 16 GB | 32 GB | 14B model needs \~10 GB RAM for inference |
-| GPU | None | NVIDIA with 12+ GB VRAM (CUDA) | Reduces LLM response from \~45s to \~10s |
-| Disk | 20 GB | 50 GB | Model weights (\~8 GB) + state data + logs |
+| CPU | 4 cores | 4+ cores | No local model inference needed |
+| RAM | 8 GB | 16 GB | No model weights needed |
+| Disk | 20 GB | 30 GB | No model weights — state data + logs only |
 | Network | Outbound HTTPS | Outbound HTTPS | No inbound ports needed (Socket Mode) |
 
 ---
@@ -67,6 +66,13 @@ FROM python:3.12-slim AS base
 
 # Set working directory
 WORKDIR /app
+
+# Install Node.js 18+ (required by Claude Agent SDK CLI)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast dependency management
 RUN pip install uv
@@ -100,9 +106,7 @@ CMD ["uv", "run", "python", "-m", "proposal_assistant.main"]
 ### 2.2 Docker Compose (Full Stack)
 
 ```yaml
-# docker-compose.yml
 version: "3.9"
-
 services:
   proposal-assistant:
     build: .
@@ -111,50 +115,18 @@ services:
     env_file: .env
     environment:
       - ENVIRONMENT=production
-      - OLLAMA_BASE_URL=http://ollama:11434/v1
-      - LOG_LEVEL=INFO
     volumes:
-      - bot-state:/app/data
-      - bot-logs:/app/logs
-    depends_on:
-      ollama:
-        condition: service_healthy
+      - ./data:/app/data
+      - ./logs:/app/logs
     networks:
       - internal
-    # No ports exposed — bot uses Socket Mode (outbound only)
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    restart: unless-stopped
-    volumes:
-      - ollama-models:/root/.ollama
-    ports:
-      - "11434:11434"    # Expose for debugging; remove in hardened prod
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    networks:
-      - internal
-    # GPU passthrough (uncomment if NVIDIA GPU available)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-
-volumes:
-  bot-state:
-    driver: local
-  bot-logs:
-    driver: local
-  ollama-models:
-    driver: local
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # No ports — Socket Mode is outbound only
+    # No Ollama sidecar — Claude Agent SDK uses cloud API
 
 networks:
   internal:
@@ -164,65 +136,35 @@ networks:
 ### 2.3 Docker Compose (Development)
 
 ```yaml
-# docker-compose.dev.yml
 version: "3.9"
-
 services:
   proposal-assistant:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: proposal-assistant-dev
     env_file: .env
     environment:
       - ENVIRONMENT=development
-      - OLLAMA_BASE_URL=http://ollama:11434/v1
       - LOG_LEVEL=DEBUG
     volumes:
-      - ./src:/app/src          # Hot-reload source
-      - ./data:/app/data        # Local state
-      - ./logs:/app/logs        # Local logs
-    depends_on:
-      - ollama
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
     networks:
       - internal
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama-dev
-    volumes:
-      - ollama-models-dev:/root/.ollama
-    ports:
-      - "11434:11434"
-    networks:
-      - internal
-
-volumes:
-  ollama-models-dev:
-    driver: local
 
 networks:
   internal:
     driver: bridge
 ```
 
-### 2.4 Model Initialization Script
+### 2.4 Claude API Verification
+
+No model initialization needed — Claude Agent SDK uses Anthropic's cloud API.
 
 ```bash
-#!/bin/bash
-# scripts/init-ollama.sh
-# Run after first docker-compose up to pull the model
-
-echo "Pulling qwen2.5:14b model..."
-docker exec ollama ollama pull qwen2.5:14b
-
-echo "Verifying model..."
-docker exec ollama ollama list
-
-echo "Testing inference..."
-docker exec ollama ollama run qwen2.5:14b "Say hello" --verbose
-
-echo "Model ready."
+# Verify API key is valid
+python -c "import httpx; print(httpx.get('https://api.anthropic.com/v1/models', headers={'x-api-key': '\$ANTHROPIC_API_KEY', 'anthropic-version': '2023-06-01'}).status_code)"
+# Should print: 200
 ```
 
 ---
@@ -339,8 +281,8 @@ jobs:
             # Check bot container is healthy
             docker inspect --format='{{.State.Health.Status}}' proposal-assistant
 
-            # Check Ollama is responding
-            curl -sf http://localhost:11434/v1/models | grep -q "qwen2.5"
+            # Check Claude API is reachable
+            docker exec proposal-assistant python -c "from proposal_assistant.health import check_claude_api; print(check_claude_api())"
 
             echo "Smoke test passed"
 
@@ -363,7 +305,7 @@ main            ← production deploys (auto-deploy on merge)
   └── develop   ← integration branch
        ├── feature/F1-config
        ├── feature/F2-state-machine
-       ├── fix/ollama-retry-timeout
+       ├── fix/claude-api-retry-timeout
        └── ...
 ```
 
@@ -380,38 +322,32 @@ main            ← production deploys (auto-deploy on merge)
 
 ```python
 # src/proposal_assistant/health.py
-
-import os
-import json
-import time
+import os, json, time, httpx
 from pathlib import Path
-from openai import OpenAI
 
-def check_ollama() -> dict:
-    """Check if Ollama is reachable and model is loaded."""
+def check_claude_api() -> dict:
+    """Check if Claude API is reachable."""
     try:
-        client = OpenAI(
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-            api_key="ollama",
+        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        resp = httpx.get(
+            "https://api.anthropic.com/v1/models",
+            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+            timeout=10,
         )
-        models = client.models.list()
-        model_names = [m.id for m in models.data]
-        expected_model = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
-        return {
-            "status": "healthy" if expected_model in model_names else "degraded",
-            "models_loaded": model_names,
-            "expected_model": expected_model,
-        }
+        if resp.status_code == 200:
+            return {"status": "healthy", "provider": "anthropic"}
+        return {"status": "degraded", "status_code": resp.status_code}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
 def check_google_drive() -> dict:
     """Check if Google Drive API is accessible."""
     try:
+        from proposal_assistant.config import get_config
         from proposal_assistant.drive.client import DriveClient
-        client = DriveClient()
-        root_id = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
-        # Attempt to list root folder
+        config = get_config()
+        client = DriveClient(config)
+        root_id = config.google_drive_root_folder_id
         client.find_folder(root_id, "_health_check_probe")
         return {"status": "healthy", "root_folder": root_id}
     except Exception as e:
@@ -432,12 +368,16 @@ def check_state_storage() -> dict:
 def check() -> dict:
     """Run all health checks. Used by Docker HEALTHCHECK."""
     results = {
-        "ollama": check_ollama(),
+        "claude_api": check_claude_api(),
         "google_drive": check_google_drive(),
         "state_storage": check_state_storage(),
         "timestamp": time.time(),
     }
-    all_healthy = all(r["status"] == "healthy" for r in results.values() if isinstance(r, dict) and "status" in r)
+    all_healthy = all(
+        r["status"] == "healthy"
+        for r in results.values()
+        if isinstance(r, dict) and "status" in r
+    )
     if not all_healthy:
         raise SystemExit(1)
     return results
@@ -450,7 +390,7 @@ The existing `/pa-status` slash command should report:
 | Check | Healthy | Degraded | Unhealthy |
 | --- | --- | --- | --- |
 | Bot process | Running, uptime shown | — | Not responding |
-| Ollama | Model loaded, last response time | Model loaded but slow (&gt;30s) | Connection refused / model missing |
+| Claude API | API reachable, model available | API degraded (non-200) | API unreachable / key invalid |
 | Google Drive | Root folder accessible | — | Auth failed / folder missing |
 | State storage | Writable, thread count shown | — | Read-only / disk full |
 | Slack API | Connected via Socket Mode | — | Disconnected |
@@ -496,14 +436,14 @@ class StructuredFormatter(logging.Formatter):
 
 | Metric | How to Measure | Alert Threshold |
 | --- | --- | --- |
-| **Deal Analysis generation time** | Timestamp: message received → doc link sent | &gt; 120 seconds |
-| **Proposal Deck generation time** | Timestamp: approval → deck link sent | &gt; 180 seconds |
-| **LLM response latency** | Time per Ollama API call | &gt; 60 seconds |
-| **Error rate** | Count of ERROR states / total requests | &gt; 10% over 1 hour |
-| **Retry rate** | Count of retried requests / total requests | &gt; 15% over 1 hour |
-| **Ollama availability** | Health check ping every 30s | 2 consecutive failures |
-| **State file count** | Number of files in `data/threads/` | &gt; 10,000 (cleanup needed) |
-| **Disk usage** | `df` on state and log volumes | &gt; 80% |
+| **Deal Analysis generation time** | Timestamp: message received → doc link sent | > 120 seconds |
+| **Proposal Deck generation time** | Timestamp: approval → deck link sent | > 180 seconds |
+| **LLM response latency** | Time per Claude API call | > 60 seconds |
+| **Error rate** | Count of ERROR states / total requests | > 10% over 1 hour |
+| **Retry rate** | Count of retried requests / total requests | > 15% over 1 hour |
+| **Claude API availability** | Health check every 30s | 2 consecutive failures |
+| **State file count** | Number of files in `data/threads/` | > 10,000 (cleanup needed) |
+| **Disk usage** | `df` on state and log volumes | > 80% |
 
 ### 5.3 Log Aggregation Strategy
 
@@ -550,11 +490,11 @@ def send_alert(title: str, details: str, severity: str = "warning") -> None:
 
 | Condition | Severity | Action |
 | --- | --- | --- |
-| Ollama health check fails 2x in a row | Critical | Alert + investigate immediately |
-| Error rate &gt; 10% in past hour | Critical | Alert + check logs |
-| LLM latency &gt; 60s for 3 consecutive requests | Warning | Alert + check Ollama resource usage |
+| Claude API health check fails 2x in a row | Critical | Alert + investigate immediately |
+| Error rate > 10% in past hour | Critical | Alert + check logs |
+| LLM latency > 60s for 3 consecutive requests | Warning | Alert + check Claude API status |
 | Google API returns 429 (quota) | Warning | Alert + auto-retry handles it |
-| State storage disk &gt; 80% | Warning | Alert + run cleanup |
+| State storage disk > 80% | Warning | Alert + run cleanup |
 | Bot container restarts unexpectedly | Critical | Alert + check Docker logs |
 | 0 requests in 24h (business day) | Info | Alert (possible silent failure) |
 
@@ -579,7 +519,7 @@ def send_alert(title: str, details: str, severity: str = "warning") -> None:
 | Google Service Account key | Quarterly | Generate new key in GCP console → update env var → deploy → delete old key |
 | Slack Bot Token | On suspected compromise | Regenerate in Slack app settings → update env var → deploy |
 | Slack App Token | On suspected compromise | Regenerate in Slack app settings → update env var → deploy |
-| Cloud LLM API keys (if used) | Quarterly | Regenerate in provider dashboard → update env var → deploy |
+| Anthropic API key | Quarterly | Regenerate in Anthropic console → update env var → deploy |
 
 ### 6.3 Input Sanitization Rules
 
@@ -595,18 +535,18 @@ def send_alert(title: str, details: str, severity: str = "warning") -> None:
 
 ## 7. Operational Runbooks
 
-### 7.1 Runbook: Ollama Out of Memory / Crash
+### 7.1 Runbook: Claude API Errors
 
-**Symptoms:** LLM_ERROR alerts, Ollama container restarting, `docker logs ollama` shows OOM.
+**Symptoms:** LLM_ERROR alerts, Claude API returning errors.
 
 **Steps:**
 
-1. Check Ollama container status: `docker compose ps ollama`
-2. Check memory usage: `docker stats ollama`
-3. If OOM: reduce `OLLAMA_NUM_CTX` (e.g., 32768 → 16384) temporarily
-4. Restart: `docker compose restart ollama`
-5. Wait 30s for model to reload, verify: `curl http://localhost:11434/v1/models`
-6. If persistent: consider GPU passthrough or upgrading RAM
+1. Check API health: `python -c "from proposal_assistant.health import check_claude_api; print(check_claude_api())"`
+2. Check API status: https://status.anthropic.com
+3. Verify API key is valid and has sufficient credits
+4. Check for rate limiting (429 responses) in logs
+5. If persistent: check Anthropic account dashboard for usage limits
+6. Bot auto-retries 3x with exponential backoff (1s, 2s, 4s)
 
 ### 7.2 Runbook: Google API 429 (Quota Exceeded)
 
@@ -679,20 +619,19 @@ def send_alert(title: str, details: str, severity: str = "warning") -> None:
 | Metric | Current Target | Bottleneck |
 | --- | --- | --- |
 | Concurrent users | 5 simultaneous | Sequential processing (1 at a time) |
-| Deal Analysis time | &lt; 60 seconds | LLM inference speed |
-| Proposal Deck time | &lt; 120 seconds | LLM inference + Slides API |
+| Deal Analysis time | < 60 seconds | LLM inference speed |
+| Proposal Deck time | < 120 seconds | LLM inference + Slides API |
 | Requests per day | \~10–20 | Team size |
 
 ### 8.2 Scaling Triggers and Actions
 
 | Trigger | Threshold | Action |
 | --- | --- | --- |
-| Queue wait time &gt; 2 minutes | Users complain about delays | Move from sequential to async queue (e.g., Redis + worker) |
-| LLM latency consistently &gt; 45s | 3+ consecutive slow requests | Add GPU, increase VRAM, or upgrade to larger GPU |
-| &gt; 20 requests/day sustained | Growth beyond initial team | Consider dedicated Ollama server separate from bot host |
-| State files &gt; 10,000 | Months of usage | Migrate from JSON to SQLite |
+| Queue wait time > 2 minutes | Users complain about delays | Move from sequential to async queue (e.g., Redis + worker) |
+| LLM latency consistently > 45s | 3+ consecutive slow requests | Check Claude API status; consider upgrading API tier |
+| > 20 requests/day sustained | Growth beyond initial team | Monitor Claude API costs; consider batch processing |
+| State files > 10,000 | Months of usage | Migrate from JSON to SQLite |
 | State file read/write conflicts | Concurrent access errors | Migrate from JSON to SQLite or Redis |
-| Cloud LLM fallback used &gt; 20% of time | Ollama reliability issues | Invest in dedicated LLM infrastructure or switch primary to cloud |
 
 ### 8.3 Database Migration Plan (JSON → SQLite)
 
@@ -807,7 +746,7 @@ find data/threads/ -name "*.json" -mtime +90 -exec \
 
 | Severity | Definition | Response Time | Example |
 | --- | --- | --- | --- |
-| **P1 — Critical** | Bot completely non-functional | 30 minutes | Container down, Ollama unreachable, Slack disconnected |
+| **P1 — Critical** | Bot completely non-functional | 30 minutes | Container down, Claude API unreachable, Slack disconnected |
 | **P2 — High** | Core feature broken for all users | 2 hours | Deal Analysis generation fails, Drive permissions broken |
 | **P3 — Medium** | Feature degraded or broken for some | 1 business day | Slow LLM responses, occasional retry failures |
 | **P4 — Low** | Minor issue, workaround exists | 1 week | Formatting glitch, missing info detection inaccurate |
@@ -868,8 +807,8 @@ find data/threads/ -name "*.json" -mtime +90 -exec \
 | Dependency | Frequency | Process |
 | --- | --- | --- |
 | Python packages (`pyproject.toml`) | Monthly | `uv lock --upgrade` → run tests → PR → merge |
-| Ollama | Monthly | Pull latest image → test model loading → deploy |
-| qwen2.5:14b model | On new release | `ollama pull qwen2.5:14b` → test with fixtures → compare output quality → deploy |
+| Claude Agent SDK | Monthly | `uv lock --upgrade` → run tests → PR → merge |
+| Anthropic API | Monitor | Check for API version changes and deprecations |
 | Docker base image | Monthly | Update `python:3.12-slim` tag → rebuild → test |
 | Google API client | Quarterly | Check for breaking changes → update → test integration |
 
@@ -922,7 +861,7 @@ Decisions made for items previously flagged as TBD across project documents.
 
 | Item | Decision | Rationale |
 | --- | --- | --- |
-| Default `num_ctx` for production | 32768 (same as dev) | 32 GB RAM recommended covers this; reduce to 16384 only if OOM occurs |
-| State storage backend for production | JSON files for MVP; migrate to SQLite when concurrent issues arise or &gt; 10K threads | Keep simple until evidence demands otherwise |
+| LLM provider for production | Claude API (Anthropic) | Cloud inference eliminates GPU requirements; simpler infrastructure; consistent performance |
+| State storage backend for production | JSON files for MVP; migrate to SQLite when concurrent issues arise or > 10K threads | Keep simple until evidence demands otherwise |
 | Support SLA | Business hours best-effort (Mon–Fri, 8AM–8PM EET) during beta; formal SLA at GA with per-severity response times | Match team capacity |
 | Audit log retention | 90 days for all logs; 180 days for deployment logs | Balance storage |

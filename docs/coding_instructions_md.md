@@ -23,8 +23,8 @@ The bot enforces a two-step workflow with a hard approval gate between the Deal 
 | Package manager | uv | All commands use `uv run`. Never use `pip` directly. |
 | Slack SDK | slack-bolt &gt;=1.18.0 | Socket Mode for event handling |
 | Google APIs | google-api-python-client &gt;=2.100.0 | Service account auth only |
-| LLM client | openai &gt;=1.0.0 | OpenAI-compatible SDK connecting to Ollama's /v1 endpoint |
-| LLM backend | Ollama + qwen2.5:14b | Local inference. Default: `http://localhost:11434/v1` |
+| LLM client | anthropic &gt;=0.18.0 | Anthropic Python SDK for Claude API |
+| LLM backend | Claude Sonnet 4.5 (`claude-sonnet-4-5-20250514`) | Cloud inference via Anthropic API |
 | Testing | pytest, pytest-cov, pytest-asyncio | Coverage target: &gt;80% for core modules |
 | Linting | ruff | Must pass with zero warnings |
 | Formatting | black | Must pass `black --check` |
@@ -40,7 +40,7 @@ src/proposal_assistant/
 ├── __init__.py
 ├── main.py                    # Entry point — initializes Bolt app
 ├── config.py                  # Env var loading, Config dataclass
-├── health.py                  # Health check module (Ollama, Drive, storage)
+├── health.py                  # Health check module (Claude API, Drive, storage)
 │
 ├── slack/
 │   ├── __init__.py
@@ -204,9 +204,9 @@ ERROR → GENERATING_DEAL_ANALYSIS                   (on ANALYSE_REQUESTED, retr
 | References | up to 6K–10K tokens |
 | Web content | up to 4K–6K tokens |
 | Reserved for output | 4K–8K tokens |
-| **Max total context** | **32K tokens** (`num_ctx=32768`) |
+| **Max total context** | **200K tokens** (Claude Sonnet 4.5 context window) |
 
-- If a transcript exceeds 32K tokens, split into chunks, summarize each, then combine.
+- Claude Sonnet 4.5 supports a 200K context window, so chunking is rarely needed. For very large inputs, pre-chunk if necessary.
 - Always leave room for the output reserve. Truncate inputs, never the output template.
 
 ### 6.3 Prompt Files
@@ -224,11 +224,12 @@ Never hardcode prompts as inline strings in Python code.
 ### 6.4 LLM Client Configuration
 
 ```python
-client = OpenAI(
-    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-    api_key="ollama",  # Required by SDK, not used by Ollama
+import anthropic
+
+client = anthropic.Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
 )
-model = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
+model = "claude-sonnet-4-5-20250514"
 ```
 
 - Temperature: `0.2` (low creativity, high consistency)
@@ -282,7 +283,7 @@ model = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
 ### 9.1 Rules
 
 - Every new feature must include tests. No exceptions.
-- Unit tests mock all external services (Slack API, Google APIs, Ollama).
+- Unit tests mock all external services (Slack API, Google APIs, Anthropic SDK).
 - Test file naming: `tests/unit/test_{module_name}.py`
 - Use fixtures from `tests/fixtures/` for consistent test data.
 - Test both happy path and error cases for every function.

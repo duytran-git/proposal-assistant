@@ -9,6 +9,7 @@ from proposal_assistant.slack.handlers import (
     handle_approval,
     handle_cloud_consent_no,
     handle_cloud_consent_yes,
+    handle_regenerate,
     handle_rejection,
     handle_status_command,
     handle_updated_deal_analysis,
@@ -62,6 +63,11 @@ def create_app() -> App:
     def reject_action(ack, body, say, client):
         ack()
         handle_rejection(body, say, client)
+
+    @app.action("regenerate_analysis")
+    def regenerate_action(ack, body, say, client):
+        ack()
+        handle_regenerate(body, say, client)
 
     # Register action handlers for cloud consent buttons
     @app.action("cloud_consent_yes")

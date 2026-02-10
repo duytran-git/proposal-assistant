@@ -7,7 +7,7 @@ A Slack bot that analyzes meeting transcripts and generates proposal documents u
 - **Transcript Analysis** — Analyzes meeting transcripts (.md files) to extract deal information
 - **Deal Analysis Generation** — Generates structured Deal Analysis documents in Google Docs
 - **Proposal Deck Creation** — Creates Proposal Decks in Google Slides from approved analyses
-- **Local LLM** — Uses Ollama (qwen2.5:14b) locally with optional cloud fallback (OpenAI/Anthropic)
+- **Cloud LLM** — Uses Anthropic Claude API (Claude Sonnet 4.5) for AI-powered content generation
 - **Web Content** — Fetches and incorporates web content from URLs in messages
 - **Auto-Sharing** — Automatically shares documents with Slack channel members
 
@@ -22,8 +22,8 @@ A Slack bot that analyzes meeting transcripts and generates proposal documents u
                           ▼
                     ┌──────────────┐
                     │  LLM Engine  │
-                    │  (Ollama)    │
-                    │ qwen2.5:14b  │
+                    │ (Anthropic)  │
+                    │Claude Sonnet │
                     └──────────────┘
 ```
 
@@ -97,7 +97,7 @@ A Slack bot that analyzes meeting transcripts and generates proposal documents u
 - [uv](https://docs.astral.sh/uv/) package manager
 - Slack workspace with admin access
 - Google Cloud project with Drive, Docs, and Slides APIs enabled
-- Ollama running locally (or cloud LLM API keys for fallback)
+- Anthropic API key (from [console.anthropic.com](https://console.anthropic.com))
 
 ### 2. Installation
 
@@ -140,16 +140,9 @@ uv sync
 2. Right-click → Open with → Google Slides (converts it)
 3. Copy the presentation ID from the URL
 
-### 4. Ollama Setup
+### 4. Claude API Setup
 
-```bash
-# Install Ollama (see https://ollama.ai for your OS)
-# Pull the required model
-ollama pull qwen2.5:14b
-
-# Verify it's running
-curl http://localhost:11434/v1/models
-```
+Set your Anthropic API key in the `.env` file (see next section). No local model installation required.
 
 ### 5. Configuration
 
@@ -172,15 +165,7 @@ GOOGLE_DRIVE_ROOT_FOLDER_ID="1abc..."                          # Shared Drive fo
 PROPOSAL_TEMPLATE_SLIDE_ID="1xyz..."                           # Google Slides template ID
 
 # LLM Configuration
-OLLAMA_BASE_URL="http://localhost:11434/v1"
-OLLAMA_MODEL="qwen2.5:14b"
-
-# Optional — Performance Tuning
-OLLAMA_NUM_CTX=32768
-
-# Optional — Cloud LLM Fallback
-OPENAI_API_KEY="sk-..."
-ANTHROPIC_API_KEY="..."
+ANTHROPIC_API_KEY="sk-ant-..."
 
 # Optional — App Settings
 LOG_LEVEL="INFO"
@@ -284,7 +269,7 @@ Analyse https://acme-corp.com/about
 | `Analyse` | Analyze attached .md transcript file(s) |
 | `Yes` / `No` | Approve or reject proposal deck creation (or use buttons) |
 | `Regenerate` | Create a new version of the Deal Analysis |
-| `/pa-status` | Check bot status, Ollama health, and metrics |
+| `/pa-status` | Check bot status, Claude API health, and metrics |
 
 ## Folder Structure Created
 
@@ -326,11 +311,8 @@ uv run pyright src/
 ### Docker (Local Development)
 
 ```bash
-# Start bot + Ollama with docker-compose
+# Start bot with docker-compose
 docker compose -f docker-compose.dev.yml up -d
-
-# Pull the model (first time only)
-docker exec ollama-dev ollama pull qwen2.5:14b
 
 # View logs
 docker logs -f proposal-assistant-dev
@@ -360,14 +342,14 @@ uv run python scripts/upload_template.py
 
 1. Check `/pa-status` to verify the bot is running
 2. Ensure the bot is invited to the channel
-3. Check that Ollama is running: `curl http://localhost:11434/v1/models`
+3. Check that the Anthropic API key is set correctly in `.env`
 4. Check Docker logs: `docker logs proposal-assistant`
 
-### "Ollama Offline" error
+### "Claude API" errors
 
-1. Start Ollama: `ollama serve`
-2. Verify model is loaded: `ollama list` (should show `qwen2.5:14b`)
-3. Or configure cloud fallback in `.env` (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
+1. Verify your `ANTHROPIC_API_KEY` is set correctly in `.env`
+2. Check API key validity: visit [console.anthropic.com](https://console.anthropic.com)
+3. Ensure outbound HTTPS connectivity to `api.anthropic.com`
 
 ### Google Drive "File not found" errors
 
@@ -402,11 +384,7 @@ uv run python scripts/upload_template.py
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Full JSON content of service account key | Yes | — |
 | `GOOGLE_DRIVE_ROOT_FOLDER_ID` | Shared Drive folder ID for proposals | Yes | — |
 | `PROPOSAL_TEMPLATE_SLIDE_ID` | Google Slides template ID | Yes | — |
-| `OLLAMA_BASE_URL` | Ollama API endpoint | No | `http://localhost:11434/v1` |
-| `OLLAMA_MODEL` | Ollama model name | No | `qwen2.5:14b` |
-| `OLLAMA_NUM_CTX` | Ollama context window size | No | `32768` |
-| `OPENAI_API_KEY` | OpenAI API key for cloud fallback | No | — |
-| `ANTHROPIC_API_KEY` | Anthropic API key for cloud fallback | No | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude LLM | Yes | — |
 | `LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | No | `INFO` |
 | `ENVIRONMENT` | Runtime environment (development, staging, production) | No | `development` |
 

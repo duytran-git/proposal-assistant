@@ -75,7 +75,9 @@ Core problem: Legacy systems causing delays
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch(
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
             patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
         ):
@@ -88,11 +90,9 @@ Core problem: Legacy systems causing delays
             mock_response.__exit__ = MagicMock(return_value=False)
             urlopen.return_value = mock_response
 
-            mock_llm = MagicMock()
-            mock_llm.generate_proposal_deck_content.return_value = {
+            mock_generate_proposal.return_value = {
                 "content": {"slide_1_cover": {}},
             }
-            LLMClient.return_value = mock_llm
 
             mock_slides = MagicMock()
             mock_slides.duplicate_template.return_value = ("deck_123", "link")
@@ -101,7 +101,7 @@ Core problem: Legacy systems causing delays
             handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
 
         # Verify LLM received parsed structured content
-        call_args = mock_llm.generate_proposal_deck_content.call_args[0][0]
+        call_args = mock_generate_proposal.call_args[0][0]
         assert "opportunity_snapshot" in call_args
         assert "problem_impact" in call_args
         assert "Acme Corp" in call_args["opportunity_snapshot"]
@@ -142,7 +142,9 @@ Core problem: Legacy systems causing delays
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch(
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
             patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
             patch("proposal_assistant.utils.doc_parser.parse_docx") as mock_parse_docx,
@@ -164,11 +166,9 @@ Company: DOCX Corp
 Business challenge: Data silos
 """
 
-            mock_llm = MagicMock()
-            mock_llm.generate_proposal_deck_content.return_value = {
+            mock_generate_proposal.return_value = {
                 "content": {"slide_1_cover": {}},
             }
-            LLMClient.return_value = mock_llm
 
             mock_slides = MagicMock()
             mock_slides.duplicate_template.return_value = ("deck_123", "link")
@@ -177,7 +177,7 @@ Business challenge: Data silos
             handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
 
         # Verify LLM received parsed structured content from docx
-        call_args = mock_llm.generate_proposal_deck_content.call_args[0][0]
+        call_args = mock_generate_proposal.call_args[0][0]
         assert "opportunity_snapshot" in call_args
         assert "DOCX Corp" in call_args["opportunity_snapshot"]
 
@@ -229,7 +229,9 @@ Business challenge: Data silos
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch(
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
             patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
         ):
@@ -242,11 +244,9 @@ Business challenge: Data silos
             mock_response.__exit__ = MagicMock(return_value=False)
             urlopen.return_value = mock_response
 
-            mock_llm = MagicMock()
-            mock_llm.generate_proposal_deck_content.return_value = {
+            mock_generate_proposal.return_value = {
                 "content": {"slide_1_cover": {}},
             }
-            LLMClient.return_value = mock_llm
 
             mock_slides = MagicMock()
             mock_slides.duplicate_template.return_value = ("deck_123", "link")
@@ -255,7 +255,7 @@ Business challenge: Data silos
             handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
 
         # Verify LLM received parsed JSON content
-        call_args = mock_llm.generate_proposal_deck_content.call_args[0][0]
+        call_args = mock_generate_proposal.call_args[0][0]
         assert call_args["opportunity_snapshot"] == {
             "company": "JSON Corp",
             "industry": "Finance",
@@ -296,18 +296,18 @@ System integration challenges
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch(
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
             patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
         ):
             get_config.return_value = mock_config
             StateMachine.return_value.get_state.return_value = uploaded_state
 
-            mock_llm = MagicMock()
-            mock_llm.generate_proposal_deck_content.return_value = {
+            mock_generate_proposal.return_value = {
                 "content": {"slide_1_cover": {}},
             }
-            LLMClient.return_value = mock_llm
 
             mock_slides = MagicMock()
             mock_slides.duplicate_template.return_value = ("deck_123", "link")
@@ -316,7 +316,7 @@ System integration challenges
             handle_approval(approval_body, mock_say, mock_client)
 
         # Verify LLM received parsed content (not raw wrapper)
-        call_args = mock_llm.generate_proposal_deck_content.call_args[0][0]
+        call_args = mock_generate_proposal.call_args[0][0]
         assert "raw_content" not in call_args
         assert "source" not in call_args
         assert "opportunity_snapshot" in call_args
@@ -362,7 +362,9 @@ Company: Partial Corp
                 "proposal_assistant.slack.handlers.urllib.request.urlopen"
             ) as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch(
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
             patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
         ):
@@ -375,11 +377,9 @@ Company: Partial Corp
             mock_response.__exit__ = MagicMock(return_value=False)
             urlopen.return_value = mock_response
 
-            mock_llm = MagicMock()
-            mock_llm.generate_proposal_deck_content.return_value = {
+            mock_generate_proposal.return_value = {
                 "content": {"slide_1_cover": {}},
             }
-            LLMClient.return_value = mock_llm
 
             mock_slides = MagicMock()
             mock_slides.duplicate_template.return_value = ("deck_123", "link")
@@ -388,7 +388,7 @@ Company: Partial Corp
             handle_updated_deal_analysis(file_upload_message, mock_say, mock_client)
 
         # Verify missing sections have default value
-        call_args = mock_llm.generate_proposal_deck_content.call_args[0][0]
+        call_args = mock_generate_proposal.call_args[0][0]
         assert "Partial Corp" in call_args["opportunity_snapshot"]
         assert call_args["problem_impact"] == "Unknown / Not provided"
         assert call_args["buying_dynamics"] == "Unknown / Not provided"

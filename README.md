@@ -7,7 +7,7 @@ A Slack bot that analyzes meeting transcripts and generates proposal documents u
 - 📝 Analyzes meeting transcripts (.md files) to extract deal information
 - 📄 Generates Deal Analysis documents in Google Docs
 - 📊 Creates Proposal Decks in Google Slides from approved analyses
-- 🤖 Supports local LLM (Ollama) with cloud fallback (OpenAI/Anthropic)
+- 🤖 AI-powered analysis using Claude API (Anthropic)
 - 🌐 Fetches and incorporates web content from URLs in messages
 - 👥 Automatically shares documents with Slack channel members
 
@@ -22,7 +22,7 @@ A Slack bot that analyzes meeting transcripts and generates proposal documents u
                            ▼
                     ┌──────────────┐
                     │  LLM Engine  │
-                    │ (Ollama/API) │
+                    │ (Claude API) │
                     └──────────────┘
 ```
 
@@ -96,7 +96,7 @@ A Slack bot that analyzes meeting transcripts and generates proposal documents u
 - [uv](https://github.com/astral-sh/uv) package manager
 - Slack workspace with admin access
 - Google Cloud project with Drive, Docs, and Slides APIs enabled
-- Ollama running locally (or cloud LLM API keys)
+- Anthropic API key ([console.anthropic.com](https://console.anthropic.com))
 
 ### 2. Installation
 
@@ -160,10 +160,8 @@ GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'  # Full JSON conten
 GOOGLE_DRIVE_ROOT_FOLDER_ID="1abc..."  # Shared Drive folder ID
 PROPOSAL_TEMPLATE_SLIDE_ID="1xyz..."   # Google Slides template ID
 
-# LLM Configuration (choose one)
-OLLAMA_MODEL="llama3.1:8b"  # For local Ollama
-# OPENAI_API_KEY="sk-..."   # For OpenAI fallback
-# ANTHROPIC_API_KEY="..."   # For Anthropic fallback
+# Claude Agent SDK (replaces Ollama)
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### 5. Slack App Setup
@@ -258,7 +256,7 @@ Analyse https://acme-corp.com/about
 | Command | Description |
 |---------|-------------|
 | `Analyse` | Analyze attached .md transcript file(s) |
-| `/pa-status` | Check bot status, Ollama health, and metrics |
+| `/pa-status` | Check bot status, Claude API health, and metrics |
 
 ## Folder Structure Created
 
@@ -278,11 +276,11 @@ For each client, the bot creates:
 ### Bot not responding
 - Check `/pa-status` to verify the bot is running
 - Ensure the bot is invited to the channel
-- Check that Ollama is running: `curl http://localhost:11434/v1/models`
+- Verify Claude API key is valid
 
-### "Ollama Offline" error
-- Start Ollama: `ollama serve`
-- Or configure cloud fallback in `.env`
+### Claude API errors
+- Verify your API key: `python -c "import httpx; print(httpx.get('https://api.anthropic.com/v1/models', headers={'x-api-key': 'YOUR_KEY', 'anthropic-version': '2023-06-01'}).status_code)"`
+- Check API status at [status.anthropic.com](https://status.anthropic.com)
 
 ### Google Drive "File not found" errors
 - Ensure you're using a **Shared Drive** folder (not personal Drive)
@@ -351,12 +349,11 @@ uv run python scripts/upload_template.py
 |----------|-------------|----------|
 | `SLACK_BOT_TOKEN` | Slack bot OAuth token (xoxb-...) | Yes |
 | `SLACK_APP_TOKEN` | Slack app-level token (xapp-...) | Yes |
+| `SLACK_SIGNING_SECRET` | Slack signing secret for request verification | Yes |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Full JSON content of service account key | Yes |
 | `GOOGLE_DRIVE_ROOT_FOLDER_ID` | Shared Drive folder ID for proposals | Yes |
 | `PROPOSAL_TEMPLATE_SLIDE_ID` | Google Slides template ID | Yes |
-| `OLLAMA_MODEL` | Ollama model name (default: llama3.1:8b) | No |
-| `OPENAI_API_KEY` | OpenAI API key for cloud fallback | No |
-| `ANTHROPIC_API_KEY` | Anthropic API key for cloud fallback | No |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude | Yes |
 
 ## License
 

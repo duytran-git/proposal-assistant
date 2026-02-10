@@ -1,11 +1,12 @@
 """Unit tests for long transcript chunking and summarization."""
 
+import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from proposal_assistant.llm.client import LLMClient
+from proposal_assistant.llm.agent import _prepare_transcript, _summarize_chunk
 from proposal_assistant.llm.context_builder import (
     ContextBuilder,
     chunk_text,
@@ -21,33 +22,15 @@ def long_transcript():
     return (FIXTURES_DIR / "long_transcript.md").read_text()
 
 
-@pytest.fixture
-def mock_config():
-    """Create a Config for LLM client tests."""
-    from proposal_assistant.config import Config
+def _mock_query_response(text: str):
+    """Create a mock async generator that yields a message with .result attribute."""
 
-    return Config(
-        slack_bot_token="xoxb-test",
-        slack_app_token="xapp-test",
-        slack_signing_secret="secret",
-        google_service_account_json="{}",
-        google_drive_root_folder_id="folder",
-        ollama_base_url="http://localhost:11434/v1",
-        ollama_model="qwen2.5:14b",
-        proposal_template_slide_id="slide",
-        ollama_num_ctx=32768,
-    )
+    async def mock_query(**kwargs):
+        msg = MagicMock()
+        msg.result = text
+        yield msg
 
-
-@pytest.fixture
-def llm_client(mock_config):
-    """Create an LLMClient with mocked OpenAI SDK."""
-    with patch("proposal_assistant.llm.client.OpenAI") as mock_openai:
-        mock_instance = MagicMock()
-        mock_openai.return_value = mock_instance
-        client = LLMClient(mock_config)
-        client._mock_openai = mock_instance
-        yield client
+    return mock_query
 
 
 class TestLongTranscriptFixture:
@@ -119,28 +102,16 @@ class TestChunkingLongTranscript:
 class TestSummaryCombination:
     """Tests for combining summaries from chunked transcripts."""
 
-    def test_summaries_combined_with_part_headers(self, long_transcript, llm_client):
+    def test_summaries_combined_with_part_headers(self, long_transcript):
         """Chunk summaries are combined with numbered part headers."""
-        # Mock the LLM to return simple summaries
-        create = llm_client._mock_openai.chat.completions.create
         call_count = [0]
 
-        def make_summary(*args, **kwargs):
+        def summarizer(chunk: str) -> str:
             call_count[0] += 1
-            response = MagicMock()
-            response.choices = [MagicMock()]
-            response.choices[0].message.content = f"Summary of chunk {call_count[0]}"
-            response.usage = None
-            return response
-
-        create.side_effect = make_summary
+            return f"Summary of chunk {call_count[0]}"
 
         # Process through context builder with summarizer
         builder = ContextBuilder()
-
-        def summarizer(chunk: str) -> str:
-            return llm_client.summarize_chunk(chunk)
-
         result = builder.build_context(
             long_transcript,
             summarizer=summarizer,
@@ -152,29 +123,17 @@ class TestSummaryCombination:
         # Result should contain part headers
         assert "## Summary of Part 1" in result.context
 
-    def test_summarized_result_fits_in_budget(self, long_transcript, llm_client):
+    def test_summarized_result_fits_in_budget(self, long_transcript):
         """After summarization, context fits within token budget."""
-        # Mock the LLM to return short summaries
-        create = llm_client._mock_openai.chat.completions.create
 
-        def make_short_summary(*args, **kwargs):
-            response = MagicMock()
-            response.choices = [MagicMock()]
-            response.choices[0].message.content = (
+        def summarizer(chunk: str) -> str:
+            return (
                 "Key points: Sales discovery meeting with TechGlobal. "
                 "Discussed proposal automation needs, integration requirements, "
                 "and implementation timeline."
             )
-            response.usage = None
-            return response
-
-        create.side_effect = make_short_summary
 
         builder = ContextBuilder()
-
-        def summarizer(chunk: str) -> str:
-            return llm_client.summarize_chunk(chunk)
-
         result = builder.build_context(
             long_transcript,
             summarizer=summarizer,
@@ -183,27 +142,15 @@ class TestSummaryCombination:
         # Summarized result should fit within budget
         assert result.estimated_tokens <= builder.MAX_TRANSCRIPT_TOKENS + 5000
 
-    def test_original_token_count_preserved_in_result(
-        self, long_transcript, llm_client
-    ):
+    def test_original_token_count_preserved_in_result(self, long_transcript):
         """Result includes original transcript token count."""
-        create = llm_client._mock_openai.chat.completions.create
 
-        def make_summary(*args, **kwargs):
-            response = MagicMock()
-            response.choices = [MagicMock()]
-            response.choices[0].message.content = "Brief summary."
-            response.usage = None
-            return response
-
-        create.side_effect = make_summary
+        def summarizer(chunk: str) -> str:
+            return "Brief summary."
 
         builder = ContextBuilder()
         # Use builder's estimation method (chars / 4) for consistency
         expected_tokens = len(long_transcript.strip()) // builder.CHARS_PER_TOKEN
-
-        def summarizer(chunk: str) -> str:
-            return llm_client.summarize_chunk(chunk)
 
         result = builder.build_context(
             long_transcript,
@@ -213,24 +160,13 @@ class TestSummaryCombination:
         # Result should track original token count (using builder's estimation)
         assert result.transcript_original_tokens == expected_tokens
 
-    def test_summarized_flag_set(self, long_transcript, llm_client):
+    def test_summarized_flag_set(self, long_transcript):
         """Result indicates transcript was summarized."""
-        create = llm_client._mock_openai.chat.completions.create
-
-        def make_summary(*args, **kwargs):
-            response = MagicMock()
-            response.choices = [MagicMock()]
-            response.choices[0].message.content = "Summary content."
-            response.usage = None
-            return response
-
-        create.side_effect = make_summary
-
-        builder = ContextBuilder()
 
         def summarizer(chunk: str) -> str:
-            return llm_client.summarize_chunk(chunk)
+            return "Summary content."
 
+        builder = ContextBuilder()
         result = builder.build_context(
             long_transcript,
             summarizer=summarizer,
@@ -239,52 +175,41 @@ class TestSummaryCombination:
         assert result.transcript_summarized is True
 
 
-class TestLLMClientLongTranscript:
-    """Tests for LLMClient handling of long transcripts."""
+class TestAsyncPrepareTranscript:
+    """Tests for _prepare_transcript async function with long transcripts."""
 
-    def test_prepare_transcript_chunks_long_content(self, long_transcript, llm_client):
-        """_prepare_transcript_for_analysis chunks long transcripts."""
-        # Mock the LLM for summarization
-        create = llm_client._mock_openai.chat.completions.create
-        summarize_calls = []
+    @pytest.mark.asyncio
+    async def test_prepare_transcript_chunks_long_content(self, long_transcript):
+        """_prepare_transcript chunks long transcripts."""
+        call_count = [0]
 
-        def track_and_summarize(*args, **kwargs):
-            summarize_calls.append(kwargs.get("messages", []))
-            response = MagicMock()
-            response.choices = [MagicMock()]
-            response.choices[0].message.content = "Chunk summary content here."
-            response.usage = None
-            return response
+        async def counting_query(**kwargs):
+            call_count[0] += 1
+            msg = MagicMock()
+            msg.result = "Chunk summary content here."
+            yield msg
 
-        create.side_effect = track_and_summarize
-
-        result = llm_client._prepare_transcript_for_analysis(long_transcript)
+        with patch("proposal_assistant.llm.agent.query", side_effect=counting_query):
+            result = await _prepare_transcript(long_transcript)
 
         # Should have made multiple summarization calls
-        assert len(summarize_calls) > 1
+        assert call_count[0] > 1
 
         # Result should contain combined summaries
         assert "Summary of Part" in result
 
-    def test_prepare_transcript_reduces_token_count(self, long_transcript, llm_client):
+    @pytest.mark.asyncio
+    async def test_prepare_transcript_reduces_token_count(self, long_transcript):
         """Summarization reduces the token count significantly."""
         original_tokens = count_tokens(long_transcript)
 
-        # Mock short summaries
-        create = llm_client._mock_openai.chat.completions.create
+        mock_query = _mock_query_response(
+            "Meeting discussed proposal automation requirements."
+        )
 
-        def make_short_summary(*args, **kwargs):
-            response = MagicMock()
-            response.choices = [MagicMock()]
-            response.choices[0].message.content = (
-                "Meeting discussed proposal automation requirements."
-            )
-            response.usage = None
-            return response
+        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
+            result = await _prepare_transcript(long_transcript)
 
-        create.side_effect = make_short_summary
-
-        result = llm_client._prepare_transcript_for_analysis(long_transcript)
         result_tokens = count_tokens(result)
 
         # Result should be significantly smaller

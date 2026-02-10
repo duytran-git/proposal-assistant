@@ -1,7 +1,7 @@
 # Production Architecture & GCP Setup Guide: Proposal Assistant
 
-**Version:** 1.0\
-**Last Updated:** 2026-02-09\
+**Version:** 2.0\
+**Last Updated:** 2026-02-10\
 **Author:** Duy Tran\
 **Status:** Draft
 
@@ -19,20 +19,19 @@
 │                                                                             │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │              GCE VM: proposal-assistant-prod                          │  │
-│  │              Machine type: g2-standard-8 (8 vCPU, 32 GB RAM)         │  │
-│  │              GPU: NVIDIA L4 (24 GB VRAM)                             │  │
-│  │              Boot disk: 50 GB SSD (Ubuntu 22.04 LTS)                 │  │
+│  │              Machine type: e2-standard-4 (4 vCPU, 16 GB RAM)         │  │
+│  │              Boot disk: 30 GB SSD (Ubuntu 22.04 LTS)                 │  │
 │  │              Zone: europe-north1-b                                    │  │
 │  │                                                                       │  │
-│  │   ┌─────────────────────┐       ┌──────────────────────────────┐     │  │
-│  │   │  proposal-assistant │       │  ollama                      │     │  │
-│  │   │  (Docker container) │──────▶│  (Docker container + GPU)    │     │  │
-│  │   │                     │       │                              │     │  │
-│  │   │  • Python 3.12      │       │  • qwen2.5:14b model loaded  │     │  │
-│  │   │  • Slack Bolt       │       │  • NVIDIA L4 passthrough     │     │  │
-│  │   │  • Socket Mode      │       │  • Port 11434 (internal)     │     │  │
-│  │   │  • Non-root user    │       │  • num_ctx=32768             │     │  │
-│  │   └────────┬────────────┘       └──────────────────────────────┘     │  │
+│  │   ┌─────────────────────┐                                             │  │
+│  │   │  proposal-assistant │                                             │  │
+│  │   │  (Docker container) │                                             │  │
+│  │   │                     │                                             │  │
+│  │   │  • Python 3.12      │                                             │  │
+│  │   │  • Slack Bolt       │                                             │  │
+│  │   │  • Socket Mode      │                                             │  │
+│  │   │  • Non-root user    │                                             │  │
+│  │   └────────┬────────────┘                                             │  │
 │  │            │                                                          │  │
 │  │   ┌────────▼──────────────────────────────────────────────────┐      │  │
 │  │   │                 Persistent Disk (SSD)                      │      │  │
@@ -66,12 +65,12 @@
           │ wss://wss-primary.slack.com  │
           ▼                              ▼
 ┌───────────────────────┐     ┌───────────────────────────────┐
-│    Slack API           │     │  Cloud LLM Fallback (optional) │
+│    Slack API           │     │  Claude API (Anthropic)        │
 │                        │     │                                │
-│  • Socket Mode events  │     │  • OpenAI API (gpt-4o)        │
-│  • Web API responses   │     │  • Anthropic API (claude)     │
-│  • Interactive actions  │     │  • Only with user consent     │
-│  • File downloads      │     │  • No data sent without ask   │
+│  • Socket Mode events  │     │  • Claude Sonnet 4.5           │
+│  • Web API responses   │     │  • ANTHROPIC_API_KEY auth      │
+│  • Interactive actions  │     │  • Pay-per-use                 │
+│  • File downloads      │     │                                │
 └───────────────────────┘     └───────────────────────────────┘
 ```
 
@@ -88,11 +87,7 @@
 │  OUTBOUND (all allowed):                         │
 │  ├── Slack API (wss://, https://)                │
 │  ├── Google APIs (https://googleapis.com)        │
-│  ├── Ollama (internal, port 11434)               │
-│  └── Cloud LLM APIs (https://, if fallback)      │
-│                                                  │
-│  INTERNAL (Docker bridge network):               │
-│  └── proposal-assistant ↔ ollama (port 11434)    │
+│  └── Claude API (https://api.anthropic.com)      │
 │                                                  │
 │  NO inbound HTTP/HTTPS needed                    │
 │  (Socket Mode = outbound-only WebSocket)         │
@@ -105,11 +100,10 @@
 | --- | --- |
 | **Single VM** | 5 concurrent users does not justify multi-node. Simpler to operate, debug, and maintain. |
 | **GCE over GKE** | Kubernetes is overkill for one bot + one LLM. GCE gives full control at lower complexity. |
-| **GCE over Cloud Run** | Cloud Run is stateless and time-limited. Ollama needs persistent GPU memory; bot needs long-running Socket Mode. |
+| **GCE over Cloud Run** | Cloud Run is stateless and time-limited. Bot needs long-running Socket Mode connection. |
 | **europe-north1 (Finland)** | Closest GCP region to Renessai team (EET timezone). Low latency to Google APIs. |
-| **g2-standard-8** | G2 machine series supports L4 GPU. 8 vCPU + 32 GB RAM handles Ollama + bot simultaneously. |
-| **NVIDIA L4 GPU** | Best price/performance for inference. 24 GB VRAM fits qwen2.5:14b with room for 32K context. LLM response: \~5–10s vs \~45s on CPU. |
-| **Docker Compose** | Two-container setup (bot + ollama) is simple to manage. No orchestrator needed. |
+| **e2-standard-4** | E2 series is cost-effective for CPU-only workloads. 4 vCPU + 16 GB RAM is sufficient without local LLM inference. |
+| **Docker Compose** | Single-container setup is simple to manage. No orchestrator needed. |
 | **Socket Mode** | No inbound ports needed. No load balancer, no SSL certificate, no domain name required. |
 | **Persistent Disk** | State data and logs survive VM restarts. Backed up daily. |
 
@@ -128,7 +122,7 @@ gcloud projects create renessai-proposal-assistant \
 # Set as active project
 gcloud config set project renessai-proposal-assistant
 
-# Enable billing (required for Compute Engine and GPUs)
+# Enable billing (required for Compute Engine)
 gcloud billing projects link renessai-proposal-assistant \
     --billing-account=YOUR_BILLING_ACCOUNT_ID
 ```
@@ -174,22 +168,6 @@ gcloud iam service-accounts keys create keys/proposal-bot-key.json \
 echo "keys/" >> .gitignore
 ```
 
-### 2.4 Request GPU Quota
-
-GPU quota is not available by default. You must request it.
-
-```bash
-# Check current GPU quota for europe-north1
-gcloud compute regions describe europe-north1 \
-    --format="table(quotas.filter(metric='NVIDIA_L4_GPUS'))"
-
-# If quota is 0, request increase:
-# 1. Go to: https://console.cloud.google.com/iam-admin/quotas
-# 2. Filter: "NVIDIA L4" + Region "europe-north1"
-# 3. Request increase to 1
-# 4. Typical approval time: 1-3 business days
-```
-
 ---
 
 ## 3. VM Provisioning
@@ -197,27 +175,15 @@ gcloud compute regions describe europe-north1 \
 ### 3.1 Create the VM
 
 ```bash
-# Create VM with L4 GPU
 gcloud compute instances create proposal-assistant-prod \
     --project=renessai-proposal-assistant \
     --zone=europe-north1-b \
-    --machine-type=g2-standard-8 \
-    --accelerator=type=nvidia-l4,count=1 \
-    --maintenance-policy=TERMINATE \
-    --restart-on-failure \
-    --boot-disk-size=50GB \
+    --machine-type=e2-standard-4 \
+    --boot-disk-size=30GB \
     --boot-disk-type=pd-ssd \
     --image-family=ubuntu-2204-lts \
     --image-project=ubuntu-os-cloud \
-    --metadata=startup-script='#!/bin/bash
-        echo "VM started at $(date)" >> /var/log/startup.log' \
-    --tags=proposal-assistant \
-    --scopes=default
-
-# Reserve a static internal IP (optional, for stable internal DNS)
-gcloud compute addresses create proposal-assistant-ip \
-    --region=europe-north1 \
-    --subnet=default
+    --tags=proposal-assistant
 ```
 
 ### 3.2 Firewall Rules
@@ -269,30 +235,7 @@ docker --version
 docker compose version
 ```
 
-### 4.2 Install NVIDIA Container Toolkit
-
-```bash
-# Add NVIDIA repository
-distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
-    sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
-# Install toolkit
-sudo apt update
-sudo apt install -y nvidia-container-toolkit
-
-# Configure Docker to use NVIDIA runtime
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
-
-# Verify GPU is accessible from Docker
-docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi
-```
-
-### 4.3 Clone Repository and Configure
+### 4.2 Clone Repository and Configure
 
 ```bash
 # Create application directory
@@ -310,7 +253,7 @@ mkdir -p data/threads data/documents logs backups
 cp .env.example .env
 ```
 
-### 4.4 Configure Environment Variables
+### 4.3 Configure Environment Variables
 
 ```bash
 nano /opt/proposal-assistant/.env
@@ -339,14 +282,8 @@ GOOGLE_DRIVE_ROOT_FOLDER_ID=1ABCxyz_your_shared_drive_folder_id
 # --- Google Slides Template ---
 PROPOSAL_TEMPLATE_SLIDE_ID=1XYZabc_your_template_presentation_id
 
-# --- LLM (Ollama — internal Docker network) ---
-OLLAMA_BASE_URL=http://ollama:11434/v1
-OLLAMA_MODEL=qwen2.5:14b
-OLLAMA_NUM_CTX=32768
-
-# --- Cloud LLM Fallback (optional) ---
-# OPENAI_API_KEY=sk-...
-# ANTHROPIC_API_KEY=sk-ant-...
+# --- LLM (Claude Agent SDK) ---
+ANTHROPIC_API_KEY=sk-ant-...
 
 # --- App Settings ---
 ENVIRONMENT=production
@@ -366,26 +303,18 @@ BOT_ENABLED=true
 ### 5.1 Production Compose File
 
 ```yaml
-# docker-compose.yml (production)
 version: "3.9"
-
 services:
   proposal-assistant:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: proposal-assistant
     restart: unless-stopped
     env_file: .env
     environment:
       - ENVIRONMENT=production
-      - OLLAMA_BASE_URL=http://ollama:11434/v1
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-    depends_on:
-      ollama:
-        condition: service_healthy
     networks:
       - internal
     logging:
@@ -393,38 +322,6 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-    # No ports needed — Socket Mode is outbound only
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    restart: unless-stopped
-    volumes:
-      - ollama-models:/root/.ollama
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    networks:
-      - internal
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-volumes:
-  ollama-models:
-    driver: local
 
 networks:
   internal:
@@ -436,30 +333,25 @@ networks:
 ```bash
 cd /opt/proposal-assistant
 
-# Build and start containers
+# Build and start container
 docker compose up -d
 
-# Pull the LLM model (first time only — takes ~5 minutes)
-docker exec ollama ollama pull qwen2.5:14b
-
-# Verify model is loaded
-docker exec ollama ollama list
-# Should show: qwen2.5:14b    8.0 GB
-
-# Verify GPU is being used
-docker exec ollama nvidia-smi
-# Should show qwen2.5 process using GPU memory
+# Verify Claude API is reachable
+docker exec proposal-assistant python -c \
+  "from proposal_assistant.health import check_claude_api; print(check_claude_api())"
+# Should show: {'status': 'healthy', 'provider': 'anthropic'}
 
 # Check bot is running
 docker compose ps
-# Both containers should show "Up" and "healthy"
+# Container should show "Up" and "healthy"
 
 # Check bot logs
 docker logs -f proposal-assistant
 # Should show: ⚡️ Bolt app is running!
 
-# Test health check
-docker exec proposal-assistant python -c "from proposal_assistant.health import check; print(check())"
+# Test full health check
+docker exec proposal-assistant python -c \
+  "from proposal_assistant.health import check; print(check())"
 ```
 
 ### 5.3 Verify End-to-End
@@ -620,7 +512,7 @@ The deploy workflow from `ops-and-deployment.md` applies directly. On merge to `
 3. Pulls latest code
 4. Rebuilds Docker images
 5. Restarts containers
-6. Runs smoke test (health check + Ollama verification)
+6. Runs smoke test (health check + Claude API verification)
 7. Notifies Slack channel with deploy status
 
 ---
@@ -643,11 +535,11 @@ if [ "$BOT_STATUS" != "healthy" ]; then
         "$SLACK_WEBHOOK_URL"
 fi
 
-# Check Ollama
-OLLAMA_OK=$(curl -sf http://localhost:11434/ | grep -c "Ollama")
-if [ "$OLLAMA_OK" -eq 0 ]; then
+# Check Claude API
+CLAUDE_OK=$(docker exec proposal-assistant python -c "from proposal_assistant.health import check_claude_api; r=check_claude_api(); print(r['status'])" 2>/dev/null)
+if [ "$CLAUDE_OK" != "healthy" ]; then
     curl -s -X POST -H 'Content-type: application/json' \
-        --data '{"text":"🔴 CRITICAL: Ollama is not responding"}' \
+        --data '{"text":"🔴 CRITICAL: Claude API is '"$CLAUDE_OK"'"}' \
         "$SLACK_WEBHOOK_URL"
 fi
 
@@ -678,7 +570,6 @@ sudo bash add-google-cloud-ops-agent-repo.sh --also-install
 # - Memory usage
 # - Disk I/O
 # - Network traffic
-# - GPU utilization (with NVIDIA driver)
 
 # Create uptime check in GCP Console:
 # Monitoring → Uptime checks → Create
@@ -695,27 +586,22 @@ sudo bash add-google-cloud-ops-agent-repo.sh --also-install
 
 | Component | Specification | Monthly Cost (USD) | Notes |
 | --- | --- | --- | --- |
-| **GCE VM** | g2-standard-8 (8 vCPU, 32 GB RAM) | \~$250 | On-demand; \~$175 with 1-year committed use |
-| **NVIDIA L4 GPU** | 1x L4 (24 GB VRAM) | \~$150 | On-demand; \~$105 with 1-year committed use |
-| **Boot disk** | 50 GB SSD (pd-ssd) | \~$8.50 |  |
-| **Network egress** | Minimal (Socket Mode outbound, API calls) | \~$1–5 | Very low traffic volume |
-| **Google APIs** | Drive, Docs, Slides | $0 | Free tier covers \~10–20 requests/day easily |
-| **Static IP** (optional) | 1 external IP | $0 (while attached) | Free when attached to running VM |
-|  |  |  |  |
-| **Total (on-demand)** |  | **\~$410–415/month** |  |
-| **Total (1-year committed)** |  | **\~$290–295/month** | \~30% savings |
-| **Total (3-year committed)** |  | **\~$205–210/month** | \~50% savings |
+| **GCE VM** | e2-standard-4 (4 vCPU, 16 GB RAM) | ~$100 | On-demand |
+| **Boot disk** | 30 GB SSD (pd-ssd) | ~$5 | |
+| **Network egress** | Minimal (Socket Mode outbound, API calls) | ~$2 | Very low traffic volume |
+| **Claude API** | Pay-per-use (Anthropic) | ~$50–200 | Varies with usage |
+| **Google APIs** | Drive, Docs, Slides | $0 | Free tier covers usage |
+| | | | |
+| **Total** | | **~$150–310/month** | |
 
 ### 9.2 Cost Optimization Options
 
 | Strategy | Savings | Trade-off |
 | --- | --- | --- |
-| **1-year committed use discount** | \~30% | Must commit to 1 year |
-| **3-year committed use discount** | \~50% | Must commit to 3 years |
-| **Drop GPU (CPU-only inference)** | \-$150/month | LLM response: \~45s instead of \~5–10s |
-| **Downgrade to g2-standard-4** | \-$60/month | 4 vCPU, 16 GB RAM — tighter but works |
-| **Schedule VM shutdown (nights/weekends)** | \~40% of VM cost | Bot offline outside business hours |
-| **Use preemptible/spot VM** | \~60–70% | VM can be terminated with 30s notice — not recommended for production |
+| **1-year committed use discount** | ~30% on VM | Must commit to 1 year |
+| **Downgrade to e2-standard-2** | ~$50/month | 2 vCPU, 8 GB RAM — tight but works for low usage |
+| **Schedule VM shutdown (nights/weekends)** | ~40% of VM cost | Bot offline outside business hours |
+| **Optimize prompts** | Reduce Claude API costs | Shorter prompts = fewer tokens = lower cost |
 
 ### 9.3 VM Scheduling (Optional Cost Saver)
 
@@ -781,8 +667,7 @@ gcloud compute disks create proposal-assistant-restored \
 # Create new VM from restored disk
 gcloud compute instances create proposal-assistant-prod-v2 \
     --zone=europe-north1-b \
-    --machine-type=g2-standard-8 \
-    --accelerator=type=nvidia-l4,count=1 \
+    --machine-type=e2-standard-4 \
     --disk=name=proposal-assistant-restored,boot=yes
 ```
 
@@ -852,8 +737,8 @@ git log --all --diff-filter=A -- '*.env' 'keys/' '.env*'
 | Backup state | Daily (automated) | `scripts/backup-state.sh` |
 | Clean old state | Monthly (automated) | `scripts/cleanup-state.sh` |
 | Update OS packages | Monthly | `sudo apt update && sudo apt upgrade -y` |
-| Update Docker images | Monthly | `docker compose pull && docker compose up -d` |
-| Update Ollama model | On new release | `docker exec ollama ollama pull qwen2.5:14b` |
+| Update Docker images | Monthly | `docker compose build --no-cache && docker compose up -d` |
+| Update Claude Agent SDK | Monthly | `uv lock --upgrade` → run tests → PR → merge |
 | Rotate service account key | Quarterly | See [ops-and-deployment.md](http://ops-and-deployment.md) §6.2 |
 | Review GCP billing | Monthly | GCP Console → Billing |
 | Test disaster recovery | Quarterly | Restore from snapshot to test VM |
@@ -863,13 +748,11 @@ git log --all --diff-filter=A -- '*.env' 'keys/' '.env*'
 ```bash
 # --- View logs ---
 docker logs -f proposal-assistant                    # Bot logs (live)
-docker logs -f ollama                                # Ollama logs (live)
 docker logs proposal-assistant --since 1h            # Last hour
 docker logs proposal-assistant --since 1h | grep ERROR  # Errors only
 
 # --- Restart services ---
-docker compose restart proposal-assistant            # Restart bot only
-docker compose restart ollama                        # Restart Ollama only
+docker compose restart proposal-assistant            # Restart bot
 docker compose restart                               # Restart everything
 
 # --- Deploy update ---
@@ -881,7 +764,6 @@ docker compose up -d
 
 # --- Check resource usage ---
 docker stats                                         # Live resource usage
-nvidia-smi                                           # GPU usage
 df -h                                                # Disk usage
 free -h                                              # Memory usage
 

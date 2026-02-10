@@ -20,24 +20,16 @@ class Config:
     google_service_account_json: str
     google_drive_root_folder_id: str
 
-    # LLM (Required)
-    ollama_base_url: str
-    ollama_model: str
+    # LLM — Anthropic (Required)
+    anthropic_api_key: str
 
     # Templates (Required)
     proposal_template_slide_id: str
 
     # Optional with defaults
-    ollama_num_ctx: int = 32768
+    anthropic_model: str = "claude-sonnet-4-5-20250514"
     log_level: str = "INFO"
     environment: str = "development"
-
-    # Cloud LLM (Optional - for fallback when Ollama is offline)
-    cloud_provider: str | None = None  # "openai" or "anthropic"
-    openai_api_key: str | None = None
-    openai_model: str = "gpt-4o"
-    anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-4-20250514"
 
 
 def _get_required_env(key: str) -> str:
@@ -61,19 +53,12 @@ def get_config() -> Config:
         # Google
         google_service_account_json=_get_required_env("GOOGLE_SERVICE_ACCOUNT_JSON"),
         google_drive_root_folder_id=_get_required_env("GOOGLE_DRIVE_ROOT_FOLDER_ID"),
-        # LLM
-        ollama_base_url=_get_required_env("OLLAMA_BASE_URL"),
-        ollama_model=_get_required_env("OLLAMA_MODEL"),
+        # LLM — Anthropic
+        anthropic_api_key=_get_required_env("ANTHROPIC_API_KEY"),
         # Templates
         proposal_template_slide_id=_get_required_env("PROPOSAL_TEMPLATE_SLIDE_ID"),
         # Optional
-        ollama_num_ctx=int(os.getenv("OLLAMA_NUM_CTX", "32768")),
+        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250514"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         environment=os.getenv("ENVIRONMENT", "development"),
-        # Cloud LLM (Optional)
-        cloud_provider=os.getenv("CLOUD_PROVIDER"),  # "openai" or "anthropic"
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
-        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
     )

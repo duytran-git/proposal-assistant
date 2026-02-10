@@ -11,8 +11,7 @@ REQUIRED_ENV_VARS = {
     "SLACK_SIGNING_SECRET": "test-secret",
     "GOOGLE_SERVICE_ACCOUNT_JSON": '{"type": "service_account"}',
     "GOOGLE_DRIVE_ROOT_FOLDER_ID": "folder-123",
-    "OLLAMA_BASE_URL": "http://localhost:11434/v1",
-    "OLLAMA_MODEL": "qwen2.5:14b",
+    "ANTHROPIC_API_KEY": "sk-ant-test-key",
     "PROPOSAL_TEMPLATE_SLIDE_ID": "slide-123",
 }
 
@@ -62,8 +61,7 @@ class TestGetConfig:
         assert config.slack_signing_secret == "test-secret"
         assert config.google_service_account_json == '{"type": "service_account"}'
         assert config.google_drive_root_folder_id == "folder-123"
-        assert config.ollama_base_url == "http://localhost:11434/v1"
-        assert config.ollama_model == "qwen2.5:14b"
+        assert config.anthropic_api_key == "sk-ant-test-key"
         assert config.proposal_template_slide_id == "slide-123"
 
     def test_missing_required_raises_value_error(self, monkeypatch):
@@ -82,13 +80,13 @@ class TestGetConfig:
         for key, value in REQUIRED_ENV_VARS.items():
             monkeypatch.setenv(key, value)
         # Ensure optional vars are not set
-        monkeypatch.delenv("OLLAMA_NUM_CTX", raising=False)
+        monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
         monkeypatch.delenv("LOG_LEVEL", raising=False)
         monkeypatch.delenv("ENVIRONMENT", raising=False)
 
         config = get_config()
 
-        assert config.ollama_num_ctx == 32768
+        assert config.anthropic_model == "claude-sonnet-4-5-20250514"
         assert config.log_level == "INFO"
         assert config.environment == "development"
 
@@ -96,13 +94,13 @@ class TestGetConfig:
         """Optional vars override defaults when set."""
         for key, value in REQUIRED_ENV_VARS.items():
             monkeypatch.setenv(key, value)
-        monkeypatch.setenv("OLLAMA_NUM_CTX", "16384")
+        monkeypatch.setenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
         monkeypatch.setenv("LOG_LEVEL", "DEBUG")
         monkeypatch.setenv("ENVIRONMENT", "production")
 
         config = get_config()
 
-        assert config.ollama_num_ctx == 16384
+        assert config.anthropic_model == "claude-haiku-4-5-20251001"
         assert config.log_level == "DEBUG"
         assert config.environment == "production"
 
@@ -128,8 +126,7 @@ class TestConfigDataclass:
             slack_signing_secret="secret",
             google_service_account_json="{}",
             google_drive_root_folder_id="folder",
-            ollama_base_url="http://localhost",
-            ollama_model="model",
+            anthropic_api_key="sk-ant-test",
             proposal_template_slide_id="slide",
         )
 
