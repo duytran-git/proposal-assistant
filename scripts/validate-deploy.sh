@@ -33,9 +33,14 @@ echo ""
 
 # ── Check 1: Docker build ──────────────────────────────────────────
 echo "[1/10] Docker build"
-if docker build -t "$IMAGE_NAME" . > /dev/null 2>&1; then
+BUILD_LOG=$(mktemp)
+if docker build -t "$IMAGE_NAME" . > "$BUILD_LOG" 2>&1; then
+    rm -f "$BUILD_LOG"
     pass "Docker image built successfully"
 else
+    echo "  Build output (last 20 lines):"
+    tail -20 "$BUILD_LOG" | sed 's/^/    /'
+    rm -f "$BUILD_LOG"
     fail "Docker build failed"
 fi
 
