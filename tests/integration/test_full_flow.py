@@ -40,7 +40,7 @@ def mock_config():
     config.google_drive_root_folder_id = "root_folder_123"
     config.google_slides_template_id = "template_123"
     config.anthropic_api_key = "sk-ant-test-key"
-    config.anthropic_model = "claude-sonnet-4-5-20250514"
+    config.anthropic_model = "claude-sonnet-4-5-20250929"
     return config
 
 

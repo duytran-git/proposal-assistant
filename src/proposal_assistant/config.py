@@ -23,11 +23,12 @@ class Config:
     # LLM — Anthropic (Required)
     anthropic_api_key: str
 
-    # Templates (Required)
-    proposal_template_slide_id: str
+    # Templates
+    proposal_template_slide_id: str = ""
+    proposal_template_path: str = "template/Renessai basic template 10_2025.pptx"
 
     # Optional with defaults
-    anthropic_model: str = "claude-sonnet-4-5-20250514"
+    anthropic_model: str = "claude-sonnet-4-5-20250929"
     log_level: str = "INFO"
     environment: str = "development"
 
@@ -56,9 +57,12 @@ def get_config() -> Config:
         # LLM — Anthropic
         anthropic_api_key=_get_required_env("ANTHROPIC_API_KEY"),
         # Templates
-        proposal_template_slide_id=_get_required_env("PROPOSAL_TEMPLATE_SLIDE_ID"),
+        proposal_template_slide_id=os.getenv("PROPOSAL_TEMPLATE_SLIDE_ID", ""),
+        proposal_template_path=os.getenv(
+            "PROPOSAL_TEMPLATE_PATH", "template/Renessai basic template 10_2025.pptx"
+        ),
         # Optional
-        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250514"),
+        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         environment=os.getenv("ENVIRONMENT", "development"),
     )

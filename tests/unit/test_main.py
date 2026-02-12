@@ -56,8 +56,10 @@ class TestCreateApp:
 
             create_app()
 
-            # Verify @app.message("Analyse") decorator was called
-            mock_app.message.assert_called_once_with("Analyse")
+            # Verify @app.message decorators were called for Analyse and Propose
+            mock_app.message.assert_any_call("Analyse")
+            mock_app.message.assert_any_call("Propose")
+            assert mock_app.message.call_count == 2
 
 
 class TestMain:

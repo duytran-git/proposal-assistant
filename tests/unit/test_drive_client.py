@@ -164,7 +164,7 @@ class TestDownloadFile:
             mock_dl.return_value.next_chunk.return_value = (None, True)
             drive_client.download_file("file_abc")
 
-        mock_files.get_media.assert_called_once_with(fileId="file_abc")
+        mock_files.get_media.assert_called_once_with(fileId="file_abc", supportsAllDrives=True)
 
 
 class TestShareFile:

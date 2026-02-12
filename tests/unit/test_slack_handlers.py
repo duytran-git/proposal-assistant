@@ -48,7 +48,7 @@ def mock_config():
     config.google_service_account_json = '{"type": "service_account"}'
     config.google_drive_root_folder_id = "root_folder_id"
     config.anthropic_api_key = "sk-ant-test-key"
-    config.anthropic_model = "claude-sonnet-4-5-20250514"
+    config.anthropic_model = "claude-sonnet-4-5-20250929"
     return config
 
 

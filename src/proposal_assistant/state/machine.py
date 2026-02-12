@@ -9,6 +9,7 @@ from proposal_assistant.state.models import Event, State, ThreadState
 TRANSITIONS: dict[tuple[State, Event], State] = {
     (State.IDLE, Event.ANALYSE_REQUESTED): State.GENERATING_DEAL_ANALYSIS,
     (State.IDLE, Event.INPUTS_MISSING): State.WAITING_FOR_INPUTS,
+    (State.IDLE, Event.PROPOSE_REQUESTED): State.GENERATING_DECK,
     (
         State.GENERATING_DEAL_ANALYSIS,
         Event.DEAL_ANALYSIS_CREATED,

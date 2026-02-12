@@ -9,6 +9,7 @@ from proposal_assistant.slack.handlers import (
     handle_approval,
     handle_cloud_consent_no,
     handle_cloud_consent_yes,
+    handle_propose_command,
     handle_regenerate,
     handle_rejection,
     handle_status_command,
@@ -31,6 +32,11 @@ def create_app() -> App:
     def analyse_message(message, say, client):
         handle_analyse_command(message, say, client)
 
+    # Register message handler for "Propose" command with file attachments
+    @app.message("Propose")
+    def propose_message(message, say, client):
+        handle_propose_command(message, say, client)
+
     # Register message event listener for file uploads
     # This catches file_share messages (which have subtypes and skip @app.message)
     @app.event("message")
@@ -49,6 +55,9 @@ def create_app() -> App:
             if "Analyse" in text:
                 logger.info("Routing to handle_analyse_command")
                 handle_analyse_command(event, say, client)
+            elif "Propose" in text:
+                logger.info("Routing to handle_propose_command")
+                handle_propose_command(event, say, client)
             else:
                 logger.info("Routing to handle_updated_deal_analysis")
                 handle_updated_deal_analysis(event, say, client)

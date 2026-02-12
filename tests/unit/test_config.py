@@ -1,5 +1,7 @@
 """Unit tests for config module."""
 
+from unittest.mock import patch
+
 import pytest
 
 from proposal_assistant.config import Config, get_config, _get_required_env
@@ -12,7 +14,6 @@ REQUIRED_ENV_VARS = {
     "GOOGLE_SERVICE_ACCOUNT_JSON": '{"type": "service_account"}',
     "GOOGLE_DRIVE_ROOT_FOLDER_ID": "folder-123",
     "ANTHROPIC_API_KEY": "sk-ant-test-key",
-    "PROPOSAL_TEMPLATE_SLIDE_ID": "slide-123",
 }
 
 
@@ -53,8 +54,12 @@ class TestGetConfig:
         """Config loads correctly when all required vars are set."""
         for key, value in REQUIRED_ENV_VARS.items():
             monkeypatch.setenv(key, value)
+        # Ensure optional template vars use defaults
+        monkeypatch.delenv("PROPOSAL_TEMPLATE_SLIDE_ID", raising=False)
+        monkeypatch.delenv("PROPOSAL_TEMPLATE_PATH", raising=False)
 
-        config = get_config()
+        with patch("proposal_assistant.config.load_dotenv"):
+            config = get_config()
 
         assert config.slack_bot_token == "xoxb-test"
         assert config.slack_app_token == "xapp-test"
@@ -62,7 +67,8 @@ class TestGetConfig:
         assert config.google_service_account_json == '{"type": "service_account"}'
         assert config.google_drive_root_folder_id == "folder-123"
         assert config.anthropic_api_key == "sk-ant-test-key"
-        assert config.proposal_template_slide_id == "slide-123"
+        assert config.proposal_template_slide_id == ""
+        assert config.proposal_template_path == "template/Renessai basic template 10_2025.pptx"
 
     def test_missing_required_raises_value_error(self, monkeypatch):
         """ValueError raised when required var is missing."""
@@ -72,8 +78,9 @@ class TestGetConfig:
                 monkeypatch.setenv(key, value)
         monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
 
-        with pytest.raises(ValueError, match="SLACK_BOT_TOKEN"):
-            get_config()
+        with patch("proposal_assistant.config.load_dotenv"):
+            with pytest.raises(ValueError, match="SLACK_BOT_TOKEN"):
+                get_config()
 
     def test_defaults_used_when_optional_not_set(self, monkeypatch):
         """Default values used for optional vars when not set."""
@@ -83,12 +90,17 @@ class TestGetConfig:
         monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
         monkeypatch.delenv("LOG_LEVEL", raising=False)
         monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("PROPOSAL_TEMPLATE_SLIDE_ID", raising=False)
+        monkeypatch.delenv("PROPOSAL_TEMPLATE_PATH", raising=False)
 
-        config = get_config()
+        with patch("proposal_assistant.config.load_dotenv"):
+            config = get_config()
 
-        assert config.anthropic_model == "claude-sonnet-4-5-20250514"
+        assert config.anthropic_model == "claude-sonnet-4-5-20250929"
         assert config.log_level == "INFO"
         assert config.environment == "development"
+        assert config.proposal_template_slide_id == ""
+        assert config.proposal_template_path == "template/Renessai basic template 10_2025.pptx"
 
     def test_optional_vars_override_defaults(self, monkeypatch):
         """Optional vars override defaults when set."""
@@ -97,12 +109,16 @@ class TestGetConfig:
         monkeypatch.setenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
         monkeypatch.setenv("LOG_LEVEL", "DEBUG")
         monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("PROPOSAL_TEMPLATE_SLIDE_ID", "slide-override")
+        monkeypatch.setenv("PROPOSAL_TEMPLATE_PATH", "/custom/template.pptx")
 
         config = get_config()
 
         assert config.anthropic_model == "claude-haiku-4-5-20251001"
         assert config.log_level == "DEBUG"
         assert config.environment == "production"
+        assert config.proposal_template_slide_id == "slide-override"
+        assert config.proposal_template_path == "/custom/template.pptx"
 
     def test_singleton_returns_same_instance(self, monkeypatch):
         """get_config returns cached instance."""
@@ -127,7 +143,6 @@ class TestConfigDataclass:
             google_service_account_json="{}",
             google_drive_root_folder_id="folder",
             anthropic_api_key="sk-ant-test",
-            proposal_template_slide_id="slide",
         )
 
         with pytest.raises(AttributeError):

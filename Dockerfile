@@ -6,6 +6,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen --no-install-project
 COPY src/ src/
 COPY config/ config/
+COPY template/ template/
 RUN mkdir -p data/threads data/documents logs
 
 ENV PYTHONPATH=/app/src
