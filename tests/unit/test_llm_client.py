@@ -345,9 +345,7 @@ class TestPrepareTranscript:
     async def test_summaries_numbered_sequentially(self, mock_client):
         long_text = "word " * 40000
 
-        mock_client.messages.create.return_value = _mock_anthropic_response(
-            "Chunk summary content"
-        )
+        mock_client.messages.create.return_value = _mock_anthropic_response("Chunk summary content")
 
         result = await _prepare_transcript(long_text)
 

@@ -32,9 +32,7 @@ def mock_config():
 class TestUploadedDocParsedForDeckGeneration:
     """Tests verifying uploaded docs are parsed and content used for deck generation."""
 
-    def test_markdown_doc_parsed_and_used_for_deck(
-        self, mock_say, mock_client, mock_config
-    ):
+    def test_markdown_doc_parsed_and_used_for_deck(self, mock_say, mock_client, mock_config):
         """Uploaded .md file is parsed and structured content passed to LLM."""
         file_upload_message = {
             "ts": "1706440000.000001",
@@ -71,9 +69,7 @@ Core problem: Legacy systems causing delays
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch(
                 "proposal_assistant.slack.handlers.generate_proposal_content"
@@ -107,9 +103,7 @@ Core problem: Legacy systems causing delays
         assert "Acme Corp" in call_args["opportunity_snapshot"]
         assert "Legacy systems" in call_args["problem_impact"]
 
-    def test_docx_file_parsed_and_used_for_deck(
-        self, mock_say, mock_client, mock_config
-    ):
+    def test_docx_file_parsed_and_used_for_deck(self, mock_say, mock_client, mock_config):
         """Uploaded .docx file is parsed and structured content passed to LLM."""
         file_upload_message = {
             "ts": "1706440000.000001",
@@ -138,9 +132,7 @@ Core problem: Legacy systems causing delays
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch(
                 "proposal_assistant.slack.handlers.generate_proposal_content"
@@ -181,9 +173,7 @@ Business challenge: Data silos
         assert "opportunity_snapshot" in call_args
         assert "DOCX Corp" in call_args["opportunity_snapshot"]
 
-    def test_json_formatted_doc_parsed_correctly(
-        self, mock_say, mock_client, mock_config
-    ):
+    def test_json_formatted_doc_parsed_correctly(self, mock_say, mock_client, mock_config):
         """Uploaded doc with JSON format is parsed correctly."""
         import json
 
@@ -225,9 +215,7 @@ Business challenge: Data silos
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch(
                 "proposal_assistant.slack.handlers.generate_proposal_content"
@@ -322,9 +310,7 @@ System integration challenges
         assert "opportunity_snapshot" in call_args
         assert "Uploaded Corp" in call_args["opportunity_snapshot"]
 
-    def test_missing_sections_filled_with_default(
-        self, mock_say, mock_client, mock_config
-    ):
+    def test_missing_sections_filled_with_default(self, mock_say, mock_client, mock_config):
         """Uploaded doc with missing sections gets default values."""
         file_upload_message = {
             "ts": "1706440000.000001",
@@ -358,9 +344,7 @@ Company: Partial Corp
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch(
                 "proposal_assistant.slack.handlers.generate_proposal_content"

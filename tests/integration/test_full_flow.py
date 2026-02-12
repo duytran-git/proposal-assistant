@@ -93,21 +93,15 @@ class TestFullAnalyseFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
             patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
-            patch(
-                "proposal_assistant.slack.handlers.populate_deal_analysis"
-            ) as populate,
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis") as populate,
         ):
             # Configure get_config
             get_config.return_value = mock_config
@@ -184,13 +178,8 @@ class TestFullAnalyseFlow:
             assert second_transition["proposals_folder_id"] == "folder_proposals_123"
             assert second_transition["deal_analysis_doc_id"] == doc_id
             assert second_transition["deal_analysis_link"] == doc_link
-            assert (
-                second_transition["deal_analysis_content"]
-                == llm_response["deal_analysis"]
-            )
-            assert (
-                second_transition["missing_info_items"] == llm_response["missing_info"]
-            )
+            assert second_transition["deal_analysis_content"] == llm_response["deal_analysis"]
+            assert second_transition["missing_info_items"] == llm_response["missing_info"]
 
             # Verify messages sent
             assert mock_say.call_count == 2
@@ -251,16 +240,12 @@ class TestFullAnalyseFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine"),
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
             patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
@@ -323,16 +308,12 @@ class TestFullAnalyseFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine"),
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
             patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
@@ -391,16 +372,12 @@ class TestFullFlowErrorHandling:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
             patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
         ):
             get_config.return_value = mock_config
@@ -431,9 +408,7 @@ class TestFullFlowErrorHandling:
             }
 
             # LLM raises error
-            mock_generate_deal.side_effect = LLMError(
-                "Service unavailable", error_type="LLM_ERROR"
-            )
+            mock_generate_deal.side_effect = LLMError("Service unavailable", error_type="LLM_ERROR")
 
             handle_analyse_command(slack_message_with_file, mock_say, mock_client)
 
@@ -461,16 +436,12 @@ class TestFullFlowErrorHandling:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
         ):
             get_config.return_value = mock_config
 
@@ -523,16 +494,12 @@ class TestFullFlowErrorHandling:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
             patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
         ):
@@ -603,16 +570,12 @@ class TestFullFlowStateVerification:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
             patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
@@ -667,10 +630,7 @@ class TestFullFlowStateVerification:
             assert captured_state_data["proposals_folder_id"] == "folder_proposals_xyz"
 
             assert "deal_analysis_content" in captured_state_data
-            assert (
-                captured_state_data["deal_analysis_content"]
-                == llm_response["deal_analysis"]
-            )
+            assert captured_state_data["deal_analysis_content"] == llm_response["deal_analysis"]
 
             assert "deal_analysis_doc_id" in captured_state_data
             assert captured_state_data["deal_analysis_doc_id"] == "doc_xyz"

@@ -11,9 +11,7 @@ from proposal_assistant.drive.client import SCOPES, DriveClient
 def mock_config():
     """Create a mock Config with Google credentials."""
     config = MagicMock()
-    config.google_service_account_json = (
-        '{"type": "service_account", "project_id": "test"}'
-    )
+    config.google_service_account_json = '{"type": "service_account", "project_id": "test"}'
     config.google_drive_root_folder_id = "root_folder_123"
     return config
 
@@ -76,9 +74,7 @@ class TestFindFolder:
 
     def test_returns_folder_id_when_found(self, drive_client):
         mock_files = drive_client._mock_service.files.return_value
-        mock_files.list.return_value.execute.return_value = {
-            "files": [{"id": "found_folder_456"}]
-        }
+        mock_files.list.return_value.execute.return_value = {"files": [{"id": "found_folder_456"}]}
 
         result = drive_client.find_folder("parent_123", "MyFolder")
 

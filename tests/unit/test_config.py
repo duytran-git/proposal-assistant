@@ -34,16 +34,12 @@ class TestGetRequiredEnv:
 
     def test_raises_when_missing(self, monkeypatch):
         monkeypatch.delenv("MISSING_VAR", raising=False)
-        with pytest.raises(
-            ValueError, match="Missing required environment variable: MISSING_VAR"
-        ):
+        with pytest.raises(ValueError, match="Missing required environment variable: MISSING_VAR"):
             _get_required_env("MISSING_VAR")
 
     def test_raises_when_empty(self, monkeypatch):
         monkeypatch.setenv("EMPTY_VAR", "")
-        with pytest.raises(
-            ValueError, match="Missing required environment variable: EMPTY_VAR"
-        ):
+        with pytest.raises(ValueError, match="Missing required environment variable: EMPTY_VAR"):
             _get_required_env("EMPTY_VAR")
 
 
@@ -87,18 +83,37 @@ class TestGetConfig:
         for key, value in REQUIRED_ENV_VARS.items():
             monkeypatch.setenv(key, value)
         # Ensure optional vars are not set
-        monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
-        monkeypatch.delenv("LOG_LEVEL", raising=False)
-        monkeypatch.delenv("ENVIRONMENT", raising=False)
-        monkeypatch.delenv("PROPOSAL_TEMPLATE_SLIDE_ID", raising=False)
-        monkeypatch.delenv("PROPOSAL_TEMPLATE_PATH", raising=False)
+        for var in [
+            "ANTHROPIC_MODEL",
+            "ANTHROPIC_MAX_TOKENS",
+            "ANTHROPIC_TEMPERATURE",
+            "ANTHROPIC_MAX_RETRIES",
+            "ANTHROPIC_RETRY_BACKOFF",
+            "ANTHROPIC_CHUNK_THRESHOLD",
+            "ANTHROPIC_CHUNK_SIZE",
+            "LOG_LEVEL",
+            "ENVIRONMENT",
+            "BOT_ENABLED",
+            "SLACK_ALERT_CHANNEL",
+            "PROPOSAL_TEMPLATE_SLIDE_ID",
+            "PROPOSAL_TEMPLATE_PATH",
+        ]:
+            monkeypatch.delenv(var, raising=False)
 
         with patch("proposal_assistant.config.load_dotenv"):
             config = get_config()
 
         assert config.anthropic_model == "claude-sonnet-4-5-20250929"
+        assert config.anthropic_max_tokens == 4096
+        assert config.anthropic_temperature == 0.3
+        assert config.anthropic_max_retries == 3
+        assert config.anthropic_retry_backoff == "1,2,4"
+        assert config.anthropic_chunk_threshold == 32000
+        assert config.anthropic_chunk_size == 8000
         assert config.log_level == "INFO"
         assert config.environment == "development"
+        assert config.bot_enabled is True
+        assert config.slack_alert_channel == ""
         assert config.proposal_template_slide_id == ""
         assert config.proposal_template_path == "template/Renessai basic template 10_2025.pptx"
 
@@ -107,16 +122,32 @@ class TestGetConfig:
         for key, value in REQUIRED_ENV_VARS.items():
             monkeypatch.setenv(key, value)
         monkeypatch.setenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+        monkeypatch.setenv("ANTHROPIC_MAX_TOKENS", "8192")
+        monkeypatch.setenv("ANTHROPIC_TEMPERATURE", "0.7")
+        monkeypatch.setenv("ANTHROPIC_MAX_RETRIES", "5")
+        monkeypatch.setenv("ANTHROPIC_RETRY_BACKOFF", "2,4,8,16")
+        monkeypatch.setenv("ANTHROPIC_CHUNK_THRESHOLD", "64000")
+        monkeypatch.setenv("ANTHROPIC_CHUNK_SIZE", "16000")
         monkeypatch.setenv("LOG_LEVEL", "DEBUG")
         monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("BOT_ENABLED", "false")
+        monkeypatch.setenv("SLACK_ALERT_CHANNEL", "#alerts")
         monkeypatch.setenv("PROPOSAL_TEMPLATE_SLIDE_ID", "slide-override")
         monkeypatch.setenv("PROPOSAL_TEMPLATE_PATH", "/custom/template.pptx")
 
         config = get_config()
 
         assert config.anthropic_model == "claude-haiku-4-5-20251001"
+        assert config.anthropic_max_tokens == 8192
+        assert config.anthropic_temperature == 0.7
+        assert config.anthropic_max_retries == 5
+        assert config.anthropic_retry_backoff == "2,4,8,16"
+        assert config.anthropic_chunk_threshold == 64000
+        assert config.anthropic_chunk_size == 16000
         assert config.log_level == "DEBUG"
         assert config.environment == "production"
+        assert config.bot_enabled is False
+        assert config.slack_alert_channel == "#alerts"
         assert config.proposal_template_slide_id == "slide-override"
         assert config.proposal_template_path == "/custom/template.pptx"
 

@@ -68,9 +68,7 @@ class TestFetchUrl:
             patch("proposal_assistant.web.fetcher.time.sleep"),
         ):
             # First two calls fail, third succeeds
-            error = urllib.error.HTTPError(
-                "https://example.com", 500, "Server Error", {}, None
-            )
+            error = urllib.error.HTTPError("https://example.com", 500, "Server Error", {}, None)
             mock_response = MagicMock()
             mock_response.read.return_value = b"Success"
             mock_response.headers.get_content_charset.return_value = "utf-8"
@@ -92,9 +90,7 @@ class TestFetchUrl:
             patch("proposal_assistant.web.fetcher.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.web.fetcher.time.sleep"),
         ):
-            error = urllib.error.HTTPError(
-                "https://example.com", 404, "Not Found", {}, None
-            )
+            error = urllib.error.HTTPError("https://example.com", 404, "Not Found", {}, None)
             urlopen.side_effect = error
 
             result = fetcher.fetch_url("https://example.com")

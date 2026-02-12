@@ -299,9 +299,7 @@ class TestApprovalGate:
 
         # Cannot skip straight to deck
         assert not machine.can_transition(State.IDLE, Event.APPROVED)
-        assert not machine.can_transition(
-            State.GENERATING_DEAL_ANALYSIS, Event.APPROVED
-        )
+        assert not machine.can_transition(State.GENERATING_DEAL_ANALYSIS, Event.APPROVED)
 
         # Must go through approval
         assert machine.can_transition(State.WAITING_FOR_APPROVAL, Event.APPROVED)

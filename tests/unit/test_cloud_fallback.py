@@ -85,19 +85,13 @@ class TestLLMOfflineShowsError:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine"),
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
-            patch(
-                "proposal_assistant.slack.handlers.generate_deal_analysis"
-            ) as mock_generate_deal,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
         ):
             from proposal_assistant.utils.validation import ValidationResult
 
@@ -150,9 +144,7 @@ class TestCloudConsentAcceptedUsesCloud:
             channel_type="channel",
             analyse_folder_id="analyse_123",
             proposals_folder_id="proposals_123",
-            input_transcript_content=[
-                "# Meeting transcript\n\nDiscussion about Acme Corp."
-            ],
+            input_transcript_content=["# Meeting transcript\n\nDiscussion about Acme Corp."],
             error_type="LLM_OFFLINE",
         )
 
@@ -168,17 +160,13 @@ class TestCloudConsentAcceptedUsesCloud:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch(
-                "proposal_assistant.slack.handlers.generate_deal_analysis"
-            ) as mock_generate_deal,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = (
-                mock_thread_state_for_cloud
-            )
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_cloud
 
             mock_generate_deal.return_value = {
                 "content": {"opportunity_snapshot": {"company": "Acme Corp"}},
@@ -197,9 +185,7 @@ class TestCloudConsentAcceptedUsesCloud:
         # Verify generate_deal_analysis was called with the transcript
         mock_generate_deal.assert_called_once()
         call_kwargs = mock_generate_deal.call_args[1]
-        assert call_kwargs["transcript"] == [
-            "# Meeting transcript\n\nDiscussion about Acme Corp."
-        ]
+        assert call_kwargs["transcript"] == ["# Meeting transcript\n\nDiscussion about Acme Corp."]
 
     def test_cloud_consent_yes_transitions_with_cloud_consent_given(
         self,
@@ -213,17 +199,13 @@ class TestCloudConsentAcceptedUsesCloud:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch(
-                "proposal_assistant.slack.handlers.generate_deal_analysis"
-            ) as mock_generate_deal,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = (
-                mock_thread_state_for_cloud
-            )
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_cloud
 
             mock_generate_deal.return_value = {
                 "content": {"company": "Acme"},
@@ -256,17 +238,13 @@ class TestCloudConsentAcceptedUsesCloud:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch(
-                "proposal_assistant.slack.handlers.generate_deal_analysis"
-            ) as mock_generate_deal,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),
         ):
             get_config.return_value = mock_config
-            StateMachine.return_value.get_state.return_value = (
-                mock_thread_state_for_cloud
-            )
+            StateMachine.return_value.get_state.return_value = mock_thread_state_for_cloud
 
             mock_generate_deal.return_value = {
                 "content": {"opportunity_snapshot": {"company": "Acme Corp"}},
@@ -292,10 +270,7 @@ class TestCloudConsentAcceptedUsesCloud:
         # Second call: completion with approval buttons
         second_call = mock_say.call_args_list[1][1]
         assert second_call["text"] == "Deal Analysis created"
-        assert any(
-            block.get("block_id") == "approval_actions"
-            for block in second_call["blocks"]
-        )
+        assert any(block.get("block_id") == "approval_actions" for block in second_call["blocks"])
 
 
 class TestEndToEndCloudFallbackFlow:
@@ -309,19 +284,13 @@ class TestEndToEndCloudFallbackFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
-            patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
-            patch(
-                "proposal_assistant.slack.handlers.generate_deal_analysis"
-            ) as mock_generate_deal,
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
         ):
             from proposal_assistant.utils.validation import ValidationResult
 
@@ -388,9 +357,7 @@ class TestEndToEndCloudFallbackFlow:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch(
-                "proposal_assistant.slack.handlers.generate_deal_analysis"
-            ) as mock_generate_deal,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.populate_deal_analysis"),

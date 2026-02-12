@@ -100,9 +100,7 @@ class TestCheckGoogleDrive:
         mock_service = MagicMock()
         mock_build.return_value = mock_service
         mock_resp = MagicMock(status=404)
-        mock_service.files().get().execute.side_effect = HttpError(
-            mock_resp, b"File not found"
-        )
+        mock_service.files().get().execute.side_effect = HttpError(mock_resp, b"File not found")
 
         with patch("proposal_assistant.config.get_config", return_value=mock_config):
             result = check_google_drive()
@@ -157,9 +155,7 @@ class TestCheck:
     @patch("proposal_assistant.health.check_state_storage")
     @patch("proposal_assistant.health.check_google_drive")
     @patch("proposal_assistant.health.check_claude_api")
-    def test_returns_results_when_all_healthy(
-        self, mock_claude, mock_drive, mock_storage
-    ):
+    def test_returns_results_when_all_healthy(self, mock_claude, mock_drive, mock_storage):
         mock_claude.return_value = {"status": "healthy", "provider": "anthropic"}
         mock_drive.return_value = {"status": "healthy", "root_folder": "root-123"}
         mock_storage.return_value = {"status": "healthy", "path": "data/threads"}
@@ -174,9 +170,7 @@ class TestCheck:
     @patch("proposal_assistant.health.check_state_storage")
     @patch("proposal_assistant.health.check_google_drive")
     @patch("proposal_assistant.health.check_claude_api")
-    def test_raises_system_exit_when_unhealthy(
-        self, mock_claude, mock_drive, mock_storage
-    ):
+    def test_raises_system_exit_when_unhealthy(self, mock_claude, mock_drive, mock_storage):
         mock_claude.return_value = {"status": "healthy", "provider": "anthropic"}
         mock_drive.return_value = {"status": "unhealthy", "error": "Drive down"}
         mock_storage.return_value = {"status": "healthy", "path": "data/threads"}
@@ -187,9 +181,7 @@ class TestCheck:
     @patch("proposal_assistant.health.check_state_storage")
     @patch("proposal_assistant.health.check_google_drive")
     @patch("proposal_assistant.health.check_claude_api")
-    def test_raises_system_exit_when_degraded(
-        self, mock_claude, mock_drive, mock_storage
-    ):
+    def test_raises_system_exit_when_degraded(self, mock_claude, mock_drive, mock_storage):
         mock_claude.return_value = {"status": "degraded", "status_code": 401}
         mock_drive.return_value = {"status": "healthy", "root_folder": "root-123"}
         mock_storage.return_value = {"status": "healthy", "path": "data/threads"}

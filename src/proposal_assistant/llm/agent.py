@@ -17,6 +17,7 @@ from typing import Any
 
 import anthropic
 
+from proposal_assistant.config import get_config
 from proposal_assistant.llm.context_builder import (
     ContextBuilder,
     chunk_text,
@@ -37,11 +38,29 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-MODEL = "claude-sonnet-4-5-20250929"
-MAX_RETRIES: int = 3
-BACKOFF_SECONDS: list[int] = [1, 2, 4]
-CHUNK_SUMMARIZE_THRESHOLD: int = 32_000
-CHUNK_SIZE_TOKENS: int = 8_000
+
+def _get_llm_config() -> tuple[str, int, list[int], int, int, float, int]:
+    """Return LLM config values from env/Config, with sensible defaults."""
+    try:
+        cfg = get_config()
+        model = cfg.anthropic_model
+        max_retries = cfg.anthropic_max_retries
+        backoff = [int(s) for s in cfg.anthropic_retry_backoff.split(",")]
+        chunk_threshold = cfg.anthropic_chunk_threshold
+        chunk_size = cfg.anthropic_chunk_size
+        temperature = cfg.anthropic_temperature
+        max_tokens = cfg.anthropic_max_tokens
+    except Exception:
+        # Fallback defaults (e.g. during tests without full env)
+        model = "claude-sonnet-4-5-20250929"
+        max_retries = 3
+        backoff = [1, 2, 4]
+        chunk_threshold = 32_000
+        chunk_size = 8_000
+        temperature = 0.3
+        max_tokens = 4096
+    return model, max_retries, backoff, chunk_threshold, chunk_size, temperature, max_tokens
+
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -155,17 +174,17 @@ def _get_client() -> anthropic.Anthropic:
 async def _query_with_retry(
     prompt: str,
     system_prompt: str,
-    temperature: float = 0.3,
+    temperature: float | None = None,
 ) -> str:
     """Execute an Anthropic messages.create call with retry.
 
-    Retries on transient errors with exponential backoff (1s, 2s, 4s).
+    Retries on transient errors with exponential backoff.
     Does NOT retry on ``LLMError`` (invalid/empty responses).
 
     Args:
         prompt: The user prompt to send.
         system_prompt: System prompt for the query.
-        temperature: Sampling temperature.
+        temperature: Sampling temperature (defaults to config value).
 
     Returns:
         The LLM response text.
@@ -173,15 +192,18 @@ async def _query_with_retry(
     Raises:
         LLMError: If all retries fail or response is invalid/empty.
     """
+    model, max_retries, backoff, _, _, default_temp, max_tokens = _get_llm_config()
+    temp = temperature if temperature is not None else default_temp
     last_error: Exception | None = None
 
-    for attempt in range(MAX_RETRIES):
+    for attempt in range(max_retries):
         try:
             client = _get_client()
             response = await asyncio.to_thread(
                 client.messages.create,
-                model=MODEL,
-                max_tokens=4096,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temp,
                 system=system_prompt,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -205,17 +227,17 @@ async def _query_with_retry(
             logger.warning(
                 "LLM request failed (attempt %d/%d): %s",
                 attempt + 1,
-                MAX_RETRIES,
+                max_retries,
                 exc,
             )
 
-            if attempt < MAX_RETRIES - 1:
-                sleep_time = BACKOFF_SECONDS[attempt]
+            if attempt < max_retries - 1:
+                sleep_time = backoff[attempt] if attempt < len(backoff) else backoff[-1]
                 logger.info("Retrying in %ds...", sleep_time)
                 await asyncio.sleep(sleep_time)
 
     raise LLMError(
-        f"LLM request failed after {MAX_RETRIES} attempts: {last_error}",
+        f"LLM request failed after {max_retries} attempts: {last_error}",
         error_type="LLM_ERROR",
     ) from last_error
 
@@ -258,8 +280,10 @@ async def _prepare_transcript(transcript: str | list[str]) -> str:
     if not merged:
         return ""
 
+    _, _, _, chunk_threshold, chunk_size, _, _ = _get_llm_config()
+
     total_tokens = count_tokens(merged)
-    if total_tokens <= CHUNK_SUMMARIZE_THRESHOLD:
+    if total_tokens <= chunk_threshold:
         logger.debug(
             "Transcript under threshold (%d tokens), no chunking needed",
             total_tokens,
@@ -269,10 +293,10 @@ async def _prepare_transcript(transcript: str | list[str]) -> str:
     logger.info(
         "Transcript exceeds threshold (%d > %d tokens), chunking and summarizing",
         total_tokens,
-        CHUNK_SUMMARIZE_THRESHOLD,
+        chunk_threshold,
     )
 
-    chunks = chunk_text(merged, CHUNK_SIZE_TOKENS)
+    chunks = chunk_text(merged, chunk_size)
     logger.info("Split transcript into %d chunks", len(chunks))
 
     summaries: list[str] = []

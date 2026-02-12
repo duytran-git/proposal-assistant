@@ -41,9 +41,7 @@ def check_google_drive() -> dict:
         )
         service = build("drive", "v3", credentials=credentials)
         result = (
-            service.files()
-            .get(fileId=root_id, fields="id,name", supportsAllDrives=True)
-            .execute()
+            service.files().get(fileId=root_id, fields="id,name", supportsAllDrives=True).execute()
         )
         return {
             "status": "healthy",

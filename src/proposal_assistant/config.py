@@ -27,10 +27,20 @@ class Config:
     proposal_template_slide_id: str = ""
     proposal_template_path: str = "template/Renessai basic template 10_2025.pptx"
 
-    # Optional with defaults
+    # LLM tuning (optional with defaults)
     anthropic_model: str = "claude-sonnet-4-5-20250929"
+    anthropic_max_tokens: int = 4096
+    anthropic_temperature: float = 0.3
+    anthropic_max_retries: int = 3
+    anthropic_retry_backoff: str = "1,2,4"  # comma-separated seconds
+    anthropic_chunk_threshold: int = 32000  # tokens before chunk-summarizing
+    anthropic_chunk_size: int = 8000  # tokens per chunk
+
+    # App settings (optional with defaults)
     log_level: str = "INFO"
     environment: str = "development"
+    bot_enabled: bool = True
+    slack_alert_channel: str = ""
 
 
 def _get_required_env(key: str) -> str:
@@ -61,8 +71,17 @@ def get_config() -> Config:
         proposal_template_path=os.getenv(
             "PROPOSAL_TEMPLATE_PATH", "template/Renessai basic template 10_2025.pptx"
         ),
-        # Optional
+        # LLM tuning
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"),
+        anthropic_max_tokens=int(os.getenv("ANTHROPIC_MAX_TOKENS", "4096")),
+        anthropic_temperature=float(os.getenv("ANTHROPIC_TEMPERATURE", "0.3")),
+        anthropic_max_retries=int(os.getenv("ANTHROPIC_MAX_RETRIES", "3")),
+        anthropic_retry_backoff=os.getenv("ANTHROPIC_RETRY_BACKOFF", "1,2,4"),
+        anthropic_chunk_threshold=int(os.getenv("ANTHROPIC_CHUNK_THRESHOLD", "32000")),
+        anthropic_chunk_size=int(os.getenv("ANTHROPIC_CHUNK_SIZE", "8000")),
+        # App settings
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         environment=os.getenv("ENVIRONMENT", "development"),
+        bot_enabled=os.getenv("BOT_ENABLED", "true").lower() in ("true", "1", "yes"),
+        slack_alert_channel=os.getenv("SLACK_ALERT_CHANNEL", ""),
     )

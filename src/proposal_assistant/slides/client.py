@@ -65,9 +65,7 @@ class SlidesClient:
             f"and PROPOSAL_TEMPLATE_SLIDE_ID is not set."
         )
 
-    def _upload_template(
-        self, title: str, folder_id: str, local_path: Path
-    ) -> tuple[str, str]:
+    def _upload_template(self, title: str, folder_id: str, local_path: Path) -> tuple[str, str]:
         """Upload a local PPTX file and convert it to Google Slides."""
         file_metadata = {
             "name": title,

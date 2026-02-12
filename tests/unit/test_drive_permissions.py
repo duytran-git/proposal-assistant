@@ -48,17 +48,11 @@ class TestShareWithChannelMembers:
         """Function retrieves channel members from Slack."""
         mock_slack_client.conversations_members.return_value = {"members": []}
 
-        share_with_channel_members(
-            mock_drive_client, "file_123", "C_CHANNEL", mock_slack_client
-        )
+        share_with_channel_members(mock_drive_client, "file_123", "C_CHANNEL", mock_slack_client)
 
-        mock_slack_client.conversations_members.assert_called_once_with(
-            channel="C_CHANNEL"
-        )
+        mock_slack_client.conversations_members.assert_called_once_with(channel="C_CHANNEL")
 
-    def test_returns_empty_list_when_no_members(
-        self, mock_drive_client, mock_slack_client
-    ):
+    def test_returns_empty_list_when_no_members(self, mock_drive_client, mock_slack_client):
         """Returns empty list when channel has no members."""
         mock_slack_client.conversations_members.return_value = {"members": []}
 
@@ -69,28 +63,20 @@ class TestShareWithChannelMembers:
         assert result == []
         mock_drive_client.share_file.assert_not_called()
 
-    def test_looks_up_user_info_for_each_member(
-        self, mock_drive_client, mock_slack_client
-    ):
+    def test_looks_up_user_info_for_each_member(self, mock_drive_client, mock_slack_client):
         """Function looks up user info to get email."""
-        mock_slack_client.conversations_members.return_value = {
-            "members": ["U_USER1", "U_USER2"]
-        }
+        mock_slack_client.conversations_members.return_value = {"members": ["U_USER1", "U_USER2"]}
         mock_slack_client.users_info.return_value = {
             "user": {"profile": {"email": "user@example.com"}, "is_bot": False}
         }
 
-        share_with_channel_members(
-            mock_drive_client, "file_123", "C_CHANNEL", mock_slack_client
-        )
+        share_with_channel_members(mock_drive_client, "file_123", "C_CHANNEL", mock_slack_client)
 
         assert mock_slack_client.users_info.call_count == 2
         mock_slack_client.users_info.assert_any_call(user="U_USER1")
         mock_slack_client.users_info.assert_any_call(user="U_USER2")
 
-    def test_shares_with_users_who_have_emails(
-        self, mock_drive_client, mock_slack_client
-    ):
+    def test_shares_with_users_who_have_emails(self, mock_drive_client, mock_slack_client):
         """Function shares file with users who have email addresses."""
         mock_slack_client.conversations_members.return_value = {"members": ["U_USER1"]}
         mock_slack_client.users_info.return_value = {
@@ -108,12 +94,8 @@ class TestShareWithChannelMembers:
 
     def test_skips_users_without_email(self, mock_drive_client, mock_slack_client):
         """Users without email addresses are skipped."""
-        mock_slack_client.conversations_members.return_value = {
-            "members": ["U_NO_EMAIL"]
-        }
-        mock_slack_client.users_info.return_value = {
-            "user": {"profile": {}, "is_bot": False}
-        }
+        mock_slack_client.conversations_members.return_value = {"members": ["U_NO_EMAIL"]}
+        mock_slack_client.users_info.return_value = {"user": {"profile": {}, "is_bot": False}}
 
         result = share_with_channel_members(
             mock_drive_client, "file_123", "C_CHANNEL", mock_slack_client
@@ -136,20 +118,14 @@ class TestShareWithChannelMembers:
         mock_drive_client.share_file.assert_not_called()
         assert result == []
 
-    def test_continues_on_user_lookup_failure(
-        self, mock_drive_client, mock_slack_client
-    ):
+    def test_continues_on_user_lookup_failure(self, mock_drive_client, mock_slack_client):
         """Function continues processing if one user lookup fails."""
-        mock_slack_client.conversations_members.return_value = {
-            "members": ["U_FAIL", "U_SUCCESS"]
-        }
+        mock_slack_client.conversations_members.return_value = {"members": ["U_FAIL", "U_SUCCESS"]}
 
         def users_info_side_effect(user):
             if user == "U_FAIL":
                 raise Exception("API error")
-            return {
-                "user": {"profile": {"email": "success@example.com"}, "is_bot": False}
-            }
+            return {"user": {"profile": {"email": "success@example.com"}, "is_bot": False}}
 
         mock_slack_client.users_info.side_effect = users_info_side_effect
 
@@ -162,9 +138,7 @@ class TestShareWithChannelMembers:
 
     def test_continues_on_share_failure(self, mock_drive_client, mock_slack_client):
         """Function continues if sharing fails for one user."""
-        mock_slack_client.conversations_members.return_value = {
-            "members": ["U_USER1", "U_USER2"]
-        }
+        mock_slack_client.conversations_members.return_value = {"members": ["U_USER1", "U_USER2"]}
 
         call_count = [0]
 

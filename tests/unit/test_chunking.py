@@ -215,9 +215,7 @@ class TestAsyncPrepareTranscript:
 
         # Result should be significantly smaller
         reduction_percent = (1 - result_tokens / original_tokens) * 100
-        assert (
-            reduction_percent > 50
-        ), f"Only {reduction_percent:.1f}% reduction, expected >50%"
+        assert reduction_percent > 50, f"Only {reduction_percent:.1f}% reduction, expected >50%"
 
 
 class TestStatusCallbacks:
@@ -241,10 +239,7 @@ class TestStatusCallbacks:
         )
 
         assert len(status_messages) > 0
-        assert any(
-            "exceeded" in msg.lower() or "summar" in msg.lower()
-            for msg in status_messages
-        )
+        assert any("exceeded" in msg.lower() or "summar" in msg.lower() for msg in status_messages)
 
     def test_progress_updates_for_each_chunk(self, long_transcript):
         """on_status receives progress updates for multi-chunk processing."""

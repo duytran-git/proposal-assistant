@@ -26,9 +26,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "llm_responses"
 def mock_config():
     """Create a mock Config with Google credentials."""
     config = MagicMock()
-    config.google_service_account_json = (
-        '{"type": "service_account", "project_id": "test"}'
-    )
+    config.google_service_account_json = '{"type": "service_account", "project_id": "test"}'
     config.google_drive_root_folder_id = "root_folder_123"
     return config
 
@@ -104,10 +102,7 @@ class TestDocsClientInit:
             DocsClient(mock_config)
 
             calls = mock_build.call_args_list
-            assert any(
-                c.args == ("docs", "v1") and c.kwargs["credentials"] == creds
-                for c in calls
-            )
+            assert any(c.args == ("docs", "v1") and c.kwargs["credentials"] == creds for c in calls)
 
     def test_builds_drive_v3_service(self, mock_config):
         with (
@@ -121,8 +116,7 @@ class TestDocsClientInit:
 
             calls = mock_build.call_args_list
             assert any(
-                c.args == ("drive", "v3") and c.kwargs["credentials"] == creds
-                for c in calls
+                c.args == ("drive", "v3") and c.kwargs["credentials"] == creds for c in calls
             )
 
 
@@ -242,9 +236,7 @@ class TestBuildSegments:
 class TestMissingInfoWarning:
     """Tests for missing info warning block."""
 
-    def test_warning_appears_when_missing_info_provided(
-        self, deal_content, missing_info
-    ):
+    def test_warning_appears_when_missing_info_provided(self, deal_content, missing_info):
         segments = _build_segments(deal_content, missing_info)
         full_text = "".join(s.text for s in segments)
         assert "Missing Information" in full_text
@@ -288,9 +280,7 @@ class TestMissingInfoWarning:
         segments = _build_segments(deal_content, missing_info)
         texts = [s.text for s in segments]
         warning_idx = next(i for i, t in enumerate(texts) if "Missing Information" in t)
-        snapshot_idx = next(
-            i for i, t in enumerate(texts) if "1. Opportunity Snapshot" in t
-        )
+        snapshot_idx = next(i for i, t in enumerate(texts) if "1. Opportunity Snapshot" in t)
         assert warning_idx < snapshot_idx
 
 
@@ -352,9 +342,7 @@ class TestSegmentsToRequests:
         segments = [_Segment("Red\n", color=(0.8, 0.0, 0.0))]
         requests = _segments_to_requests(segments)
         text_reqs = [r for r in requests if "updateTextStyle" in r]
-        rgb = text_reqs[0]["updateTextStyle"]["textStyle"]["foregroundColor"]["color"][
-            "rgbColor"
-        ]
+        rgb = text_reqs[0]["updateTextStyle"]["textStyle"]["foregroundColor"]["color"]["rgbColor"]
         assert rgb == {"red": 0.8, "green": 0.0, "blue": 0.0}
 
     def test_combined_styles_in_single_request(self):
@@ -408,11 +396,7 @@ class TestPopulateDealAnalysis:
     def test_batch_update_body_has_requests(self, docs_client, deal_content):
         populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
-        call_kwargs = (
-            docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
-                1
-            ]
-        )
+        call_kwargs = docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[1]
         requests = call_kwargs["body"]["requests"]
         assert len(requests) > 0
         assert "insertText" in requests[0]
@@ -420,11 +404,7 @@ class TestPopulateDealAnalysis:
     def test_inserted_text_contains_all_sections(self, docs_client, deal_content):
         populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
-        call_kwargs = (
-            docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
-                1
-            ]
-        )
+        call_kwargs = docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[1]
         inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "1. Opportunity Snapshot" in inserted
         assert "2. Problem & Impact" in inserted
@@ -437,26 +417,16 @@ class TestPopulateDealAnalysis:
     def test_inserted_text_contains_content_values(self, docs_client, deal_content):
         populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
-        call_kwargs = (
-            docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
-                1
-            ]
-        )
+        call_kwargs = docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[1]
         inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Acme Corp" in inserted
         assert "Legacy ERP system" in inserted
         assert "Schedule technical deep-dive" in inserted
 
-    def test_missing_info_appears_in_output(
-        self, docs_client, deal_content, missing_info
-    ):
+    def test_missing_info_appears_in_output(self, docs_client, deal_content, missing_info):
         populate_deal_analysis(docs_client, "doc_abc", deal_content, missing_info)
 
-        call_kwargs = (
-            docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
-                1
-            ]
-        )
+        call_kwargs = docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[1]
         inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Missing Information" in inserted
         assert "Budget range" in inserted
@@ -464,33 +434,21 @@ class TestPopulateDealAnalysis:
     def test_no_missing_info_omits_warning(self, docs_client, deal_content):
         populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
-        call_kwargs = (
-            docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
-                1
-            ]
-        )
+        call_kwargs = docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[1]
         inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Missing Information" not in inserted
 
     def test_empty_content_uses_unknown_defaults(self, docs_client):
         populate_deal_analysis(docs_client, "doc_abc", {})
 
-        call_kwargs = (
-            docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
-                1
-            ]
-        )
+        call_kwargs = docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[1]
         inserted = call_kwargs["body"]["requests"][0]["insertText"]["text"]
         assert "Unknown" in inserted
 
     def test_requests_include_formatting(self, docs_client, deal_content):
         populate_deal_analysis(docs_client, "doc_abc", deal_content)
 
-        call_kwargs = (
-            docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[
-                1
-            ]
-        )
+        call_kwargs = docs_client._mock_docs_service.documents.return_value.batchUpdate.call_args[1]
         requests = call_kwargs["body"]["requests"]
         has_paragraph = any("updateParagraphStyle" in r for r in requests)
         has_text_style = any("updateTextStyle" in r for r in requests)

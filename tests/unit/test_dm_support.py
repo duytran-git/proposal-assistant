@@ -26,9 +26,7 @@ class TestShareWithUserById:
         result = share_with_user_by_id(drive, "file123", "U123", slack_client)
 
         assert result == "user@example.com"
-        drive.share_file.assert_called_once_with(
-            "file123", "user@example.com", role="writer"
-        )
+        drive.share_file.assert_called_once_with("file123", "user@example.com", role="writer")
 
     def test_returns_none_when_no_email(self):
         """Returns None when user has no email in profile."""
@@ -57,9 +55,7 @@ class TestShareWithUserById:
         drive = MagicMock()
         drive.share_file.side_effect = Exception("Drive error")
         slack_client = MagicMock()
-        slack_client.users_info.return_value = {
-            "user": {"profile": {"email": "user@example.com"}}
-        }
+        slack_client.users_info.return_value = {"user": {"profile": {"email": "user@example.com"}}}
 
         result = share_with_user_by_id(drive, "file123", "U123", slack_client)
 
@@ -137,9 +133,7 @@ class TestShareFile:
         drive = MagicMock()
         slack_client = MagicMock()
         slack_client.conversations_members.return_value = {"members": ["U1"]}
-        slack_client.users_info.return_value = {
-            "user": {"profile": {"email": "user@example.com"}}
-        }
+        slack_client.users_info.return_value = {"user": {"profile": {"email": "user@example.com"}}}
 
         share_file(
             drive=drive,
@@ -156,9 +150,7 @@ class TestShareFile:
         """DM context never calls conversations_members API."""
         drive = MagicMock()
         slack_client = MagicMock()
-        slack_client.users_info.return_value = {
-            "user": {"profile": {"email": "user@example.com"}}
-        }
+        slack_client.users_info.return_value = {"user": {"profile": {"email": "user@example.com"}}}
 
         share_file(
             drive=drive,
@@ -204,9 +196,7 @@ class TestShareWithChannelMembers:
         """Continues sharing with other members when one lookup fails."""
         drive = MagicMock()
         slack_client = MagicMock()
-        slack_client.conversations_members.return_value = {
-            "members": ["U1", "U2", "U3"]
-        }
+        slack_client.conversations_members.return_value = {"members": ["U1", "U2", "U3"]}
         slack_client.users_info.side_effect = [
             {"user": {"profile": {"email": "user1@example.com"}}},
             Exception("API error"),
@@ -266,9 +256,7 @@ class TestDMFlowIntegration:
         slack_client = MagicMock()
 
         # Set up user lookup to succeed
-        slack_client.users_info.return_value = {
-            "user": {"profile": {"email": "user@example.com"}}
-        }
+        slack_client.users_info.return_value = {"user": {"profile": {"email": "user@example.com"}}}
 
         # Make conversations_members fail (shouldn't be called for DM)
         slack_client.conversations_members.side_effect = Exception("channel_not_found")
