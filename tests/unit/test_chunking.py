@@ -22,15 +22,22 @@ def long_transcript():
     return (FIXTURES_DIR / "long_transcript.md").read_text()
 
 
-def _mock_query_response(text: str):
-    """Create a mock async generator that yields a message with .result attribute."""
+def _mock_anthropic_response(text: str):
+    """Create a mock Anthropic messages.create response with given text."""
+    response = MagicMock()
+    block = MagicMock()
+    block.text = text
+    response.content = [block]
+    return response
 
-    async def mock_query(**kwargs):
-        msg = MagicMock()
-        msg.result = text
-        yield msg
 
-    return mock_query
+@pytest.fixture
+def mock_client():
+    """Patch _get_client and return the mock client instance."""
+    with patch("proposal_assistant.llm.agent._get_client") as mock_get:
+        client = MagicMock()
+        mock_get.return_value = client
+        yield client
 
 
 class TestLongTranscriptFixture:
@@ -179,36 +186,30 @@ class TestAsyncPrepareTranscript:
     """Tests for _prepare_transcript async function with long transcripts."""
 
     @pytest.mark.asyncio
-    async def test_prepare_transcript_chunks_long_content(self, long_transcript):
+    async def test_prepare_transcript_chunks_long_content(self, long_transcript, mock_client):
         """_prepare_transcript chunks long transcripts."""
-        call_count = [0]
+        mock_client.messages.create.return_value = _mock_anthropic_response(
+            "Chunk summary content here."
+        )
 
-        async def counting_query(**kwargs):
-            call_count[0] += 1
-            msg = MagicMock()
-            msg.result = "Chunk summary content here."
-            yield msg
-
-        with patch("proposal_assistant.llm.agent.query", side_effect=counting_query):
-            result = await _prepare_transcript(long_transcript)
+        result = await _prepare_transcript(long_transcript)
 
         # Should have made multiple summarization calls
-        assert call_count[0] > 1
+        assert mock_client.messages.create.call_count > 1
 
         # Result should contain combined summaries
         assert "Summary of Part" in result
 
     @pytest.mark.asyncio
-    async def test_prepare_transcript_reduces_token_count(self, long_transcript):
+    async def test_prepare_transcript_reduces_token_count(self, long_transcript, mock_client):
         """Summarization reduces the token count significantly."""
         original_tokens = count_tokens(long_transcript)
 
-        mock_query = _mock_query_response(
+        mock_client.messages.create.return_value = _mock_anthropic_response(
             "Meeting discussed proposal automation requirements."
         )
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await _prepare_transcript(long_transcript)
+        result = await _prepare_transcript(long_transcript)
 
         result_tokens = count_tokens(result)
 

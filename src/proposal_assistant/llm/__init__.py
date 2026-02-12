@@ -4,7 +4,6 @@ from proposal_assistant.llm.agent import (
     LLMError,
     generate_deal_analysis,
     generate_proposal_content,
-    get_agent_options,
     _extract_json,
     _prepare_transcript,
     _summarize_chunk,
@@ -31,5 +30,4 @@ __all__ = [
     "count_tokens",
     "generate_deal_analysis",
     "generate_proposal_content",
-    "get_agent_options",
 ]

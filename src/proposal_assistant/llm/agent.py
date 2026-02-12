@@ -1,7 +1,7 @@
-"""Claude Agent SDK client wrapper for Proposal Assistant.
+"""Anthropic API client wrapper for Proposal Assistant.
 
 Provides async functions for generating Deal Analysis and Proposal Deck
-content using the Claude Agent SDK with custom MCP tools and security hooks.
+content using the Anthropic Python SDK (direct HTTP API calls).
 Matches the return shapes of the old LLMClient so downstream code
 (docs/deal_analysis.py, slides/proposal_deck.py) does not break.
 """
@@ -15,18 +15,13 @@ import re
 from pathlib import Path
 from typing import Any
 
-from claude_agent_sdk import (
-    ClaudeAgentOptions,
-    query,
-)
+import anthropic
 
 from proposal_assistant.llm.context_builder import (
     ContextBuilder,
     chunk_text,
     count_tokens,
 )
-from proposal_assistant.llm.hooks import get_security_hooks
-from proposal_assistant.llm.mcp_server import get_proposal_mcp_server
 from proposal_assistant.llm.prompts.deal_analysis import (
     SYSTEM_PROMPT as DEAL_ANALYSIS_SYSTEM_PROMPT,
     format_user_prompt as format_deal_analysis_prompt,
@@ -42,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-MODEL = "claude-sonnet-4-5-20250514"
+MODEL = "claude-sonnet-4-5-20250929"
 MAX_RETRIES: int = 3
 BACKOFF_SECONDS: list[int] = [1, 2, 4]
 CHUNK_SUMMARIZE_THRESHOLD: int = 32_000
@@ -138,38 +133,18 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Agent options factory
+# Anthropic client helper
 # ---------------------------------------------------------------------------
 
+_client: anthropic.Anthropic | None = None
 
-def get_agent_options(
-    allowed_tools: list[str] | None = None,
-    max_turns: int = 10,
-) -> ClaudeAgentOptions:
-    """Build ClaudeAgentOptions with MCP server, hooks, and system prompt.
 
-    Args:
-        allowed_tools: Tool names the agent is allowed to invoke.
-            Defaults to all tools if empty/None.
-        max_turns: Maximum agentic turns before stopping.
-
-    Returns:
-        Configured ClaudeAgentOptions ready for ``query()`` or
-        ``ClaudeSDKClient``.
-    """
-    system_prompt = _load_system_prompt()
-    mcp_server = get_proposal_mcp_server()
-    hooks = get_security_hooks()
-
-    return ClaudeAgentOptions(
-        model=MODEL,
-        system_prompt=system_prompt,
-        permission_mode="acceptEdits",
-        mcp_servers=[mcp_server],
-        hooks=hooks,
-        allowed_tools=allowed_tools or [],
-        max_turns=max_turns,
-    )
+def _get_client() -> anthropic.Anthropic:
+    """Return a cached Anthropic client (uses ANTHROPIC_API_KEY env var)."""
+    global _client
+    if _client is None:
+        _client = anthropic.Anthropic()
+    return _client
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +157,7 @@ async def _query_with_retry(
     system_prompt: str,
     temperature: float = 0.3,
 ) -> str:
-    """Execute a Claude Agent SDK one-shot query with retry.
+    """Execute an Anthropic messages.create call with retry.
 
     Retries on transient errors with exponential backoff (1s, 2s, 4s).
     Does NOT retry on ``LLMError`` (invalid/empty responses).
@@ -202,16 +177,16 @@ async def _query_with_retry(
 
     for attempt in range(MAX_RETRIES):
         try:
-            options = ClaudeAgentOptions(
+            client = _get_client()
+            response = await asyncio.to_thread(
+                client.messages.create,
                 model=MODEL,
-                system_prompt=system_prompt,
-                permission_mode="acceptEdits",
+                max_tokens=4096,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
             )
 
-            result_text = ""
-            async for message in query(prompt=prompt, options=options):
-                if hasattr(message, "result"):
-                    result_text = message.result
+            result_text = response.content[0].text if response.content else ""
 
             if not result_text or not result_text.strip():
                 raise LLMError(

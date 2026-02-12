@@ -26,36 +26,29 @@ def deal_analysis_json():
     return json.loads((FIXTURES_DIR / "deal_analysis_response.json").read_text())
 
 
-def _mock_query_response(text: str):
-    """Create a mock async generator that yields a message with .result attribute."""
-
-    async def mock_query(**kwargs):
-        msg = MagicMock()
-        msg.result = text
-        yield msg
-
-    return mock_query
+def _mock_anthropic_response(text: str):
+    """Create a mock Anthropic messages.create response with given text."""
+    response = MagicMock()
+    block = MagicMock()
+    block.text = text
+    response.content = [block]
+    return response
 
 
-def _mock_query_empty():
-    """Create a mock async generator that yields a message with empty result."""
-
-    async def mock_query(**kwargs):
-        msg = MagicMock()
-        msg.result = ""
-        yield msg
-
-    return mock_query
+def _mock_anthropic_empty():
+    """Create a mock Anthropic response with empty content."""
+    response = MagicMock()
+    response.content = []
+    return response
 
 
-def _mock_query_error(exc):
-    """Create a mock async generator that raises an exception."""
-
-    async def mock_query(**kwargs):
-        raise exc
-        yield  # noqa: unreachable - needed to make this an async generator
-
-    return mock_query
+@pytest.fixture
+def mock_client():
+    """Patch _get_client and return the mock client instance."""
+    with patch("proposal_assistant.llm.agent._get_client") as mock_get:
+        client = MagicMock()
+        mock_get.return_value = client
+        yield client
 
 
 # ---------------------------------------------------------------------------
@@ -142,50 +135,36 @@ class TestQueryWithRetry:
     """Tests for _query_with_retry async function."""
 
     @pytest.mark.asyncio
-    async def test_returns_result_on_success(self):
-        mock_query = _mock_query_response("Hello, world!")
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await _query_with_retry("test prompt", "system prompt")
+    async def test_returns_result_on_success(self, mock_client):
+        mock_client.messages.create.return_value = _mock_anthropic_response("Hello, world!")
+        result = await _query_with_retry("test prompt", "system prompt")
         assert result == "Hello, world!"
 
     @pytest.mark.asyncio
-    async def test_empty_response_raises_llm_invalid(self):
-        mock_query = _mock_query_empty()
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            with pytest.raises(LLMError, match="empty response") as exc_info:
-                await _query_with_retry("test", "system")
+    async def test_empty_response_raises_llm_invalid(self, mock_client):
+        mock_client.messages.create.return_value = _mock_anthropic_empty()
+        with pytest.raises(LLMError, match="empty response") as exc_info:
+            await _query_with_retry("test", "system")
         assert exc_info.value.error_type == "LLM_INVALID"
 
     @pytest.mark.asyncio
-    async def test_retries_on_transient_error(self):
-        call_count = 0
+    async def test_retries_on_transient_error(self, mock_client):
+        mock_client.messages.create.side_effect = [
+            RuntimeError("transient error"),
+            _mock_anthropic_response("recovered"),
+        ]
 
-        async def flaky_query(**kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise RuntimeError("transient error")
-            msg = MagicMock()
-            msg.result = "recovered"
-            yield msg
-
-        with (
-            patch("proposal_assistant.llm.agent.query", side_effect=flaky_query),
-            patch("proposal_assistant.llm.agent.asyncio.sleep", new_callable=AsyncMock),
-        ):
+        with patch("proposal_assistant.llm.agent.asyncio.sleep", new_callable=AsyncMock):
             result = await _query_with_retry("test", "system")
 
         assert result == "recovered"
-        assert call_count == 2
+        assert mock_client.messages.create.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_raises_after_max_retries(self):
-        async def always_fail(**kwargs):
-            raise RuntimeError("persistent error")
-            yield  # noqa: unreachable
+    async def test_raises_after_max_retries(self, mock_client):
+        mock_client.messages.create.side_effect = RuntimeError("persistent error")
 
         with (
-            patch("proposal_assistant.llm.agent.query", side_effect=always_fail),
             patch("proposal_assistant.llm.agent.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(LLMError, match="failed after 3 attempts") as exc_info,
         ):
@@ -194,45 +173,29 @@ class TestQueryWithRetry:
         assert exc_info.value.error_type == "LLM_ERROR"
 
     @pytest.mark.asyncio
-    async def test_does_not_retry_llm_error(self):
+    async def test_does_not_retry_llm_error(self, mock_client):
         """LLMError (invalid/empty responses) should not be retried."""
-        call_count = 0
+        mock_client.messages.create.return_value = _mock_anthropic_empty()
 
-        async def invalid_response(**kwargs):
-            nonlocal call_count
-            call_count += 1
-            msg = MagicMock()
-            msg.result = ""
-            yield msg
+        with pytest.raises(LLMError):
+            await _query_with_retry("test", "system")
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=invalid_response):
-            with pytest.raises(LLMError):
-                await _query_with_retry("test", "system")
-
-        assert call_count == 1  # No retry
+        assert mock_client.messages.create.call_count == 1  # No retry
 
     @pytest.mark.asyncio
-    async def test_backoff_sleep_durations(self):
-        call_count = 0
-
-        async def fail_twice(**kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count <= 2:
-                raise RuntimeError("error")
-            msg = MagicMock()
-            msg.result = "ok"
-            yield msg
+    async def test_backoff_sleep_durations(self, mock_client):
+        mock_client.messages.create.side_effect = [
+            RuntimeError("error"),
+            RuntimeError("error"),
+            _mock_anthropic_response("ok"),
+        ]
 
         sleep_calls = []
 
         async def track_sleep(seconds):
             sleep_calls.append(seconds)
 
-        with (
-            patch("proposal_assistant.llm.agent.query", side_effect=fail_twice),
-            patch("proposal_assistant.llm.agent.asyncio.sleep", side_effect=track_sleep),
-        ):
+        with patch("proposal_assistant.llm.agent.asyncio.sleep", side_effect=track_sleep):
             await _query_with_retry("test", "system")
 
         assert sleep_calls == [1, 2]
@@ -247,12 +210,11 @@ class TestGenerateDealAnalysis:
     """Tests for generate_deal_analysis async function."""
 
     @pytest.mark.asyncio
-    async def test_returns_content_and_missing_info(self, deal_analysis_json):
+    async def test_returns_content_and_missing_info(self, deal_analysis_json, mock_client):
         raw_json = json.dumps(deal_analysis_json)
-        mock_query = _mock_query_response(raw_json)
+        mock_client.messages.create.return_value = _mock_anthropic_response(raw_json)
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await generate_deal_analysis("Meeting transcript here")
+        result = await generate_deal_analysis("Meeting transcript here")
 
         assert isinstance(result["content"], dict)
         assert result["content"]["opportunity_snapshot"]["company"] == "Acme Corp"
@@ -264,53 +226,48 @@ class TestGenerateDealAnalysis:
         assert result["raw_response"] == raw_json
 
     @pytest.mark.asyncio
-    async def test_handles_fenced_json_response(self, deal_analysis_json):
+    async def test_handles_fenced_json_response(self, deal_analysis_json, mock_client):
         fenced = f"```json\n{json.dumps(deal_analysis_json)}\n```"
-        mock_query = _mock_query_response(fenced)
+        mock_client.messages.create.return_value = _mock_anthropic_response(fenced)
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await generate_deal_analysis("transcript")
+        result = await generate_deal_analysis("transcript")
 
         assert result["content"]["opportunity_snapshot"]["company"] == "Acme Corp"
 
     @pytest.mark.asyncio
-    async def test_empty_missing_info_defaults_to_list(self):
+    async def test_empty_missing_info_defaults_to_list(self, mock_client):
         data = {"deal_analysis": {"opportunity_snapshot": {}}}
-        mock_query = _mock_query_response(json.dumps(data))
+        mock_client.messages.create.return_value = _mock_anthropic_response(json.dumps(data))
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await generate_deal_analysis("transcript")
+        result = await generate_deal_analysis("transcript")
 
         assert result["missing_info"] == []
 
     @pytest.mark.asyncio
-    async def test_invalid_json_raises_llm_invalid(self):
-        mock_query = _mock_query_response("not json at all")
+    async def test_invalid_json_raises_llm_invalid(self, mock_client):
+        mock_client.messages.create.return_value = _mock_anthropic_response("not json at all")
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            with pytest.raises(LLMError) as exc_info:
-                await generate_deal_analysis("transcript")
+        with pytest.raises(LLMError) as exc_info:
+            await generate_deal_analysis("transcript")
 
         assert exc_info.value.error_type == "LLM_INVALID"
 
     @pytest.mark.asyncio
-    async def test_non_dict_deal_analysis_raises_llm_invalid(self):
+    async def test_non_dict_deal_analysis_raises_llm_invalid(self, mock_client):
         data = {"deal_analysis": "just a string", "missing_info": []}
-        mock_query = _mock_query_response(json.dumps(data))
+        mock_client.messages.create.return_value = _mock_anthropic_response(json.dumps(data))
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            with pytest.raises(LLMError, match="not an object") as exc_info:
-                await generate_deal_analysis("transcript")
+        with pytest.raises(LLMError, match="not an object") as exc_info:
+            await generate_deal_analysis("transcript")
 
         assert exc_info.value.error_type == "LLM_INVALID"
 
     @pytest.mark.asyncio
-    async def test_non_list_missing_info_defaults_to_empty(self):
+    async def test_non_list_missing_info_defaults_to_empty(self, mock_client):
         data = {"deal_analysis": {}, "missing_info": "not a list"}
-        mock_query = _mock_query_response(json.dumps(data))
+        mock_client.messages.create.return_value = _mock_anthropic_response(json.dumps(data))
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await generate_deal_analysis("transcript")
+        result = await generate_deal_analysis("transcript")
 
         assert result["missing_info"] == []
 
@@ -324,10 +281,11 @@ class TestSummarizeChunk:
     """Tests for _summarize_chunk async function."""
 
     @pytest.mark.asyncio
-    async def test_returns_summary_from_llm(self):
-        mock_query = _mock_query_response("This is a summary of the chunk.")
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await _summarize_chunk("Long transcript text here...")
+    async def test_returns_summary_from_llm(self, mock_client):
+        mock_client.messages.create.return_value = _mock_anthropic_response(
+            "This is a summary of the chunk."
+        )
+        result = await _summarize_chunk("Long transcript text here...")
         assert result == "This is a summary of the chunk."
 
     @pytest.mark.asyncio
@@ -374,22 +332,24 @@ class TestPrepareTranscript:
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_long_transcript_gets_chunked_and_summarized(self):
+    async def test_long_transcript_gets_chunked_and_summarized(self, mock_client):
         long_text = "word " * 40000  # ~40K words ≈ 52K tokens
 
-        mock_query = _mock_query_response("Chunk summary")
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await _prepare_transcript(long_text)
+        mock_client.messages.create.return_value = _mock_anthropic_response("Chunk summary")
+
+        result = await _prepare_transcript(long_text)
 
         assert "Summary of Part" in result
 
     @pytest.mark.asyncio
-    async def test_summaries_numbered_sequentially(self):
+    async def test_summaries_numbered_sequentially(self, mock_client):
         long_text = "word " * 40000
 
-        mock_query = _mock_query_response("Chunk summary content")
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await _prepare_transcript(long_text)
+        mock_client.messages.create.return_value = _mock_anthropic_response(
+            "Chunk summary content"
+        )
+
+        result = await _prepare_transcript(long_text)
 
         assert "## Summary of Part 1" in result
 
@@ -404,29 +364,30 @@ class TestGenerateDealAnalysisWithLongTranscripts:
 
     @pytest.mark.asyncio
     async def test_long_transcript_preprocessed_before_analysis(
-        self, deal_analysis_json
+        self, deal_analysis_json, mock_client
     ):
         long_text = "word " * 40000
-        call_count = 0
 
-        async def smart_query(**kwargs):
-            nonlocal call_count
-            call_count += 1
-            msg = MagicMock()
-            # Check the system prompt to distinguish summarization from analysis
-            options = kwargs.get("options")
-            system = getattr(options, "system_prompt", "") if options else ""
+        # First N calls are chunk summaries, last call is the deal analysis
+        summary_response = _mock_anthropic_response("Chunk summary content")
+        analysis_response = _mock_anthropic_response(json.dumps(deal_analysis_json))
+
+        call_count = [0]
+        responses = []
+
+        def create_side_effect(**kwargs):
+            call_count[0] += 1
+            system = kwargs.get("system", "")
             if "sales advisor" in system.lower() or "deal analysis" in system.lower():
-                msg.result = json.dumps(deal_analysis_json)
-            else:
-                msg.result = "Chunk summary content"
-            yield msg
+                return analysis_response
+            return summary_response
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=smart_query):
-            result = await generate_deal_analysis(long_text)
+        mock_client.messages.create.side_effect = create_side_effect
+
+        result = await generate_deal_analysis(long_text)
 
         assert isinstance(result["content"], dict)
-        assert call_count > 1
+        assert call_count[0] > 1
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +399,7 @@ class TestGenerateProposalContent:
     """Tests for generate_proposal_content async function."""
 
     @pytest.mark.asyncio
-    async def test_returns_slide_content(self):
+    async def test_returns_slide_content(self, mock_client):
         deck_response = {
             "slide_1_cover": {"title": "Proposal"},
             "slide_2_executive_summary": {"summary": "Summary text"},
@@ -453,32 +414,34 @@ class TestGenerateProposalContent:
             "slide_11_proof_of_success": {"proof": "Proof"},
             "slide_12_next_steps": {"steps": ["Step 1"]},
         }
-        mock_query = _mock_query_response(json.dumps(deck_response))
+        mock_client.messages.create.return_value = _mock_anthropic_response(
+            json.dumps(deck_response)
+        )
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            result = await generate_proposal_content({"deal": "analysis"})
+        result = await generate_proposal_content({"deal": "analysis"})
 
         assert result["content"]["slide_1_cover"]["title"] == "Proposal"
         assert "raw_response" in result
 
     @pytest.mark.asyncio
-    async def test_missing_slides_logged_as_warning(self, caplog):
+    async def test_missing_slides_logged_as_warning(self, mock_client, caplog):
         partial_response = {
             "slide_1_cover": {"title": "Proposal"},
             "slide_2_executive_summary": {"summary": "Summary"},
         }
-        mock_query = _mock_query_response(json.dumps(partial_response))
+        mock_client.messages.create.return_value = _mock_anthropic_response(
+            json.dumps(partial_response)
+        )
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            import logging
+        import logging
 
-            with caplog.at_level(logging.WARNING):
-                await generate_proposal_content({})
+        with caplog.at_level(logging.WARNING):
+            await generate_proposal_content({})
 
         assert "missing slide keys" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_non_dict_slide_raises_llm_invalid(self):
+    async def test_non_dict_slide_raises_llm_invalid(self, mock_client):
         invalid_response = {
             "slide_1_cover": "not a dict",
             "slide_2_executive_summary": {},
@@ -493,10 +456,11 @@ class TestGenerateProposalContent:
             "slide_11_proof_of_success": {},
             "slide_12_next_steps": {},
         }
-        mock_query = _mock_query_response(json.dumps(invalid_response))
+        mock_client.messages.create.return_value = _mock_anthropic_response(
+            json.dumps(invalid_response)
+        )
 
-        with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-            with pytest.raises(LLMError, match="not an object") as exc_info:
-                await generate_proposal_content({})
+        with pytest.raises(LLMError, match="not an object") as exc_info:
+            await generate_proposal_content({})
 
         assert exc_info.value.error_type == "LLM_INVALID"
