@@ -25,16 +25,31 @@ def check_claude_api() -> dict:
 
 
 def check_google_drive() -> dict:
-    """Check if Google Drive API is accessible."""
+    """Check if Google Drive API is accessible and root folder is reachable."""
     try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+
         from proposal_assistant.config import get_config
-        from proposal_assistant.drive.client import DriveClient
 
         config = get_config()
-        client = DriveClient(config)
         root_id = config.google_drive_root_folder_id
-        client.find_folder(root_id, "_health_check_probe")
-        return {"status": "healthy", "root_folder": root_id}
+
+        credentials = Credentials.from_service_account_info(
+            json.loads(config.google_service_account_json),
+            scopes=["https://www.googleapis.com/auth/drive"],
+        )
+        service = build("drive", "v3", credentials=credentials)
+        result = (
+            service.files()
+            .get(fileId=root_id, fields="id,name", supportsAllDrives=True)
+            .execute()
+        )
+        return {
+            "status": "healthy",
+            "root_folder": root_id,
+            "root_folder_name": result.get("name"),
+        }
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 

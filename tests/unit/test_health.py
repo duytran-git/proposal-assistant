@@ -63,29 +63,52 @@ class TestCheckClaudeApi:
 class TestCheckGoogleDrive:
     """Tests for check_google_drive."""
 
-    @patch("proposal_assistant.health.DriveClient", create=True)
-    @patch("proposal_assistant.health.get_config", create=True)
-    def test_healthy_when_drive_accessible(self, mock_get_config, mock_drive_cls):
-        # These are imported inside the function, so we patch them at the source
+    @patch("googleapiclient.discovery.build")
+    @patch("google.oauth2.service_account.Credentials")
+    def test_healthy_when_root_folder_accessible(self, mock_creds_cls, mock_build):
         mock_config = MagicMock()
         mock_config.google_drive_root_folder_id = "root-123"
+        mock_config.google_service_account_json = '{"type":"service_account"}'
 
-        with patch(
-            "proposal_assistant.config.get_config", return_value=mock_config
-        ), patch(
-            "proposal_assistant.drive.client.DriveClient"
-        ) as mock_drive_cls_inner:
-            mock_drive_instance = MagicMock()
-            mock_drive_cls_inner.return_value = mock_drive_instance
+        mock_creds_cls.from_service_account_info.return_value = MagicMock()
 
-            # We need to patch at the import locations used inside the function
-            with patch(
-                "proposal_assistant.health.check_google_drive"
-            ) as mock_check:
-                mock_check.return_value = {"status": "healthy", "root_folder": "root-123"}
-                result = mock_check()
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+        mock_service.files().get().execute.return_value = {
+            "id": "root-123",
+            "name": "Clients",
+        }
 
-        assert result == {"status": "healthy", "root_folder": "root-123"}
+        with patch("proposal_assistant.config.get_config", return_value=mock_config):
+            result = check_google_drive()
+
+        assert result["status"] == "healthy"
+        assert result["root_folder"] == "root-123"
+        assert result["root_folder_name"] == "Clients"
+
+    @patch("googleapiclient.discovery.build")
+    @patch("google.oauth2.service_account.Credentials")
+    def test_unhealthy_when_root_folder_not_found(self, mock_creds_cls, mock_build):
+        from googleapiclient.errors import HttpError
+
+        mock_config = MagicMock()
+        mock_config.google_drive_root_folder_id = "bad-id"
+        mock_config.google_service_account_json = '{"type":"service_account"}'
+
+        mock_creds_cls.from_service_account_info.return_value = MagicMock()
+
+        mock_service = MagicMock()
+        mock_build.return_value = mock_service
+        mock_resp = MagicMock(status=404)
+        mock_service.files().get().execute.side_effect = HttpError(
+            mock_resp, b"File not found"
+        )
+
+        with patch("proposal_assistant.config.get_config", return_value=mock_config):
+            result = check_google_drive()
+
+        assert result["status"] == "unhealthy"
+        assert "File not found" in result["error"]
 
     def test_unhealthy_on_exception(self):
         with patch(
