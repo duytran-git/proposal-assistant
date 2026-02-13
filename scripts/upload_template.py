@@ -1,3 +1,4 @@
+# Standalone utility — reads env vars directly (does not require full app config)
 """Upload and convert the PPTX template to Google Slides in the Shared Drive."""
 
 import os

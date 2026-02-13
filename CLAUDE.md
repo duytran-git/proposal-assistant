@@ -5,114 +5,179 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Install dependencies
-uv sync                          # all (dev + prod)
-uv sync --no-dev                 # prod only
+# Install (uv preferred; pip3 fallback if uv unavailable)
+uv sync                          # or: pip3 install -e ".[dev]"
 
-# Run the bot
+# Run
 uv run python -m proposal_assistant.main
 
 # Tests
-uv run pytest                                    # all tests
-uv run pytest tests/unit/ -v                     # unit tests only
-uv run pytest tests/integration/ -v              # integration tests only
-uv run pytest tests/unit/test_llm_client.py -v   # single file
-uv run pytest tests/unit/test_llm_client.py::TestExtractJson -v  # single class
-uv run pytest tests/unit/test_llm_client.py::TestExtractJson::test_parses_fenced_json -v  # single test
-uv run pytest --cov=src/proposal_assistant --cov-report=html     # coverage
+uv run pytest                              # all tests
+uv run pytest tests/unit/ -v               # unit only
+uv run pytest tests/integration/ -v        # integration only
+uv run pytest tests/unit/test_health.py -v                        # single file
+uv run pytest tests/unit/test_health.py::TestCheckClaudeApi -v    # single class
+uv run pytest tests/unit/test_health.py::TestCheckClaudeApi::test_healthy_when_200 -v  # single test
+uv run pytest --cov=src/proposal_assistant --cov-report=html      # coverage (CI enforces 80%)
 
 # Lint & format
 uv run ruff check src/
-uv run black --check src/        # check only
-uv run black src/                # fix
-uv run pyright src/              # type check
+uv run black --check src/                  # line-length = 100
+uv run pyright src/
 
 # Docker
-docker compose up -d                              # production
-docker compose -f docker-compose.dev.yml up -d    # dev (hot-reload)
+docker compose -f docker-compose.dev.yml up -d   # dev (hot-reload src/)
+docker compose up -d                              # prod
 ```
-
-**Note:** `uv` may not be available on all systems. Fall back to `pip3 install -e ".[dev]"` and run commands without the `uv run` prefix.
 
 ## Architecture
 
-Slack bot that transforms meeting transcripts into Deal Analysis (Google Doc) and Proposal Deck (Google Slides) through a two-step workflow with an approval gate.
+Slack bot (slack-bolt, Socket Mode) that transforms meeting transcripts into:
+1. **Deal Analysis** — structured Google Doc summarizing client discovery
+2. **Proposal Deck** — Google Slides presentation from Renessai template
 
-### LLM Integration
+**Stack:** Python 3.12 · `anthropic` SDK (direct `messages.create`, NOT `claude-agent-sdk`) · Google Drive/Docs/Slides APIs (service account) · JSON file state persistence (`data/threads/`)
 
-Uses `claude_agent_sdk.query()` for one-shot async completions with Claude Sonnet 4.5 (`claude-sonnet-4-5-20250514`). The SDK is used for its `query()` async generator — MCP tools/hooks files exist (`llm/tools.py`, `llm/mcp_server.py`, `llm/hooks.py`) but are not actively wired into the main workflow.
-
-Key module: `src/proposal_assistant/llm/agent.py`
-- `generate_deal_analysis(transcript, references, web_content)` → dict with `content`, `missing_info`, `raw_response`
-- `generate_proposal_content(deal_analysis)` → dict with `content` (12 slide keys), `raw_response`
-- `_query_with_retry()` — 3 retries with 1s/2s/4s exponential backoff; does NOT retry `LLMError`
-- `_extract_json()` — parses JSON from LLM responses, handles markdown code fences
-- `_prepare_transcript()` — chunk-summarizes transcripts over 32k tokens
+### Two-Step Workflow
+1. User uploads `.md` transcript + "Analyse" → bot generates Deal Analysis doc → shares in Drive
+2. User approves ("Yes") → bot generates Proposal Deck from Deal Analysis → shares deck
+- "No" ends workflow. "Regenerate" creates versioned new doc (v2, v3...)
+- "Propose" with attached `.docx`/`.md` skips transcript analysis, goes straight to deck
 
 ### State Machine
-
-`src/proposal_assistant/state/machine.py` — Manages thread lifecycle:
 ```
 IDLE → GENERATING_DEAL_ANALYSIS → WAITING_FOR_APPROVAL → GENERATING_DECK → DONE
+  ↓                                       ↓
+WAITING_FOR_INPUTS                      DONE (rejected)
+Any → ERROR (on failure) → GENERATING_DEAL_ANALYSIS (on retry)
 ```
-Transitions are a dict of `(State, Event) → State`. JSON file persistence in `data/threads/`.
+States/events: `state/models.py`. Transitions: `state/machine.py`. Persistence: `state/storage.py` → `data/threads/{channel}_{ts}.json`.
 
-### Workflow Orchestration
+### Request Flow
+```
+slack/handlers.py (orchestrator)
+  → llm/agent.py (LLM calls)
+  → drive/client.py + drive/folders.py (folder creation)
+  → docs/deal_analysis.py or slides/proposal_deck.py (document population)
+  → drive/permissions.py (sharing)
+  → state/machine.py (state transitions throughout)
+```
 
-`src/proposal_assistant/slack/handlers.py` is the main orchestrator. It handles Slack events and coordinates: transcript validation → Drive folder creation → LLM generation → Google Docs/Slides creation → sharing → Slack responses.
+Handlers are the glue — each handler (`handle_analyse_command`, `handle_approval`, `handle_regenerate`, etc.) orchestrates the full sub-workflow including error handling and Slack messaging.
 
-### Google APIs
+## LLM Integration
 
-Service account auth. Three parallel wrappers:
-- `drive/` — folder creation, file operations
-- `docs/` — Deal Analysis document creation (6-section structure)
-- `slides/` — template duplication and 12-slide population (`slide_1_cover` through `slide_12_next_steps`)
+**Entry point:** `src/proposal_assistant/llm/agent.py`
+
+Key functions:
+- `generate_deal_analysis(transcript, references, web_content)` → `{"content": dict, "missing_info": list, "raw_response": str}`
+- `generate_proposal_content(deal_analysis)` → `{"content": dict (12 slide keys), "raw_response": str}`
+- `_query_with_retry(prompt, system_prompt)` — retry with exponential backoff (configurable via config)
+- `_prepare_transcript(transcript)` — merges multiple transcripts, auto-chunks if over token threshold
+
+All LLM config (model, max_tokens, temperature, retries, backoff, chunk thresholds) flows through `config.py:get_config()`. No silent fallbacks — missing config fails loudly.
+
+**Dead code:** `llm/tools.py`, `llm/mcp_server.py`, `llm/hooks.py` import `claude_agent_sdk` which is not installed. These files are unused.
+
+## Configuration
+
+All env-based config is centralized in `config.py:get_config()` (cached singleton via `@lru_cache`). No other `src/` modules should read `os.getenv` directly. The `scripts/` directory is the intentional exception — standalone utilities that only need 1-2 vars.
+
+Health check constants (`ANTHROPIC_MODELS_URL`, `ANTHROPIC_VERSION_HEADER`, `HEALTH_CHECK_TIMEOUT`) are exported from `health.py` and reused by `handlers.py` via `check_claude_api()`.
+
+### Required env vars
+```
+SLACK_BOT_TOKEN, SLACK_APP_TOKEN, SLACK_SIGNING_SECRET
+GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_DRIVE_ROOT_FOLDER_ID
+ANTHROPIC_API_KEY
+```
+
+### Optional (with defaults from config.py)
+```
+ANTHROPIC_MODEL=claude-sonnet-4-5-20250929
+ANTHROPIC_MAX_TOKENS=8192
+ANTHROPIC_TEMPERATURE=0.3
+ANTHROPIC_MAX_RETRIES=3
+ANTHROPIC_RETRY_BACKOFF=1,2,4
+ANTHROPIC_CHUNK_THRESHOLD=32000
+ANTHROPIC_CHUNK_SIZE=8000
+PROPOSAL_TEMPLATE_SLIDE_ID=
+PROPOSAL_TEMPLATE_PATH=template/Renessai basic template 10_2025.pptx
+LOG_LEVEL=INFO
+ENVIRONMENT=development
+BOT_ENABLED=true
+SLACK_ALERT_CHANNEL=
+```
 
 ## Testing Patterns
 
-### Mocking the LLM
+No `conftest.py` — fixtures are defined locally in each test file.
 
+### Mocking the Anthropic client
 ```python
-def _mock_query_response(text: str):
-    async def mock_query(**kwargs):
-        msg = MagicMock()
-        msg.result = text
-        yield msg
-    return mock_query
+@pytest.fixture
+def mock_client():
+    with patch("proposal_assistant.llm.agent._get_client") as mock_get:
+        client = MagicMock()
+        mock_get.return_value = client
+        yield client
 
-with patch("proposal_assistant.llm.agent.query", side_effect=mock_query):
-    result = await generate_deal_analysis("transcript")
+# Building a mock response:
+response = MagicMock()
+block = MagicMock()
+block.text = '{"deal_analysis": {...}, "missing_info": []}'
+response.content = [block]
+mock_client.messages.create.return_value = response
 ```
 
-### Config Fixtures
+### Config cache in tests
+`get_config()` is `@lru_cache` — tests must clear it to pick up env var changes:
+```python
+@pytest.fixture(autouse=True)
+def clear_config_cache():
+    get_config.cache_clear()
+    yield
+    get_config.cache_clear()
+```
 
-Tests that touch `get_config()` need a Config fixture with all required fields mocked. The `get_config` LRU cache must be cleared between tests.
+### Minimal required env vars for tests
+```python
+REQUIRED_ENV_VARS = {
+    "SLACK_BOT_TOKEN": "xoxb-test",
+    "SLACK_APP_TOKEN": "xapp-test",
+    "SLACK_SIGNING_SECRET": "test-secret",
+    "GOOGLE_SERVICE_ACCOUNT_JSON": '{"type": "service_account"}',
+    "GOOGLE_DRIVE_ROOT_FOLDER_ID": "folder-123",
+    "ANTHROPIC_API_KEY": "sk-ant-test-key",
+}
+```
 
-## Code Style
+### Test fixtures
+- `tests/fixtures/transcripts/` — sample `.md` transcripts (valid, empty, long)
+- `tests/fixtures/llm_responses/` — JSON responses for deal_analysis, proposal_deck
+- `tests/fixtures/slack_events/` — sample Slack message payloads
 
-- **Black**: line length 100, Python 3.12 target
-- **Ruff**: line length 100, Python 3.12 target
-- **Pyright**: standard mode (not strict)
-- **pytest**: `asyncio_mode = "auto"` — async tests work without `@pytest.mark.asyncio`
+## Key Product Rules
 
-## Key Rules
-
-- Never use `openai` package or reference Ollama/`OLLAMA_*` env vars — the project migrated to Anthropic SDK
-- Never modify the original Slides template — always duplicate
-- Never invent facts in generated content — use "Unknown / Not provided"
-- Deal Analysis must be generated and approved before Proposal Deck
-- Never expose raw API errors to users — use the error handling matrix in `slack/messages.py`
-- `check_ollama_health()` and `use_cloud` param are kept as no-ops for handler compatibility
-
-## Environment Variables
-
-Required: `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_SIGNING_SECRET`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_ROOT_FOLDER_ID`, `PROPOSAL_TEMPLATE_SLIDE_ID`, `ANTHROPIC_API_KEY`
-
-Optional: `ANTHROPIC_MODEL` (default: `claude-sonnet-4-5-20250514`), `LOG_LEVEL` (default: `INFO`), `ENVIRONMENT` (default: `development`)
+1. **Grounded content** — only use provided inputs. Never invent facts. Flag missing info as "Unknown / Not provided"
+2. **Two-step workflow** — Deal Analysis first, Proposal Deck only after explicit "Yes"
+3. **Template integrity** — never modify original Slides template; always duplicate. Arial 14pt, theme colors only (`scheme_color`, not hardcoded hex)
+4. **Drive scoping** — only write to `/Clients/{ClientName}/`. Never delete existing client docs
+5. **Friendly errors** — never expose raw API errors. Use error messages from `slack/messages.py`
+6. **No secret logging** — never log API keys, tokens, or full transcripts
+7. **Content overflow** — split across slides rather than shrinking font
 
 ## Pre-existing Test Failures
 
-These test failures predate the LLM migration and are not caused by recent changes:
+These tests fail due to pre-existing issues (not related to LLM migration):
 - `test_drive_client.py::TestDownloadFile::test_calls_get_media_with_file_id`
 - `test_slides_client.py::TestDuplicateTemplate::test_sends_correct_copy_request`
 - `test_slides_client.py::TestPopulateProposalDeck::test_deletes_existing_text_before_insert`
+
+## Reference Docs
+
+- `docs/prd.md` — requirements, acceptance criteria, error handling matrix
+- `docs/project-context.md` — product context, workflows, templates
+- `docs/technical-design.md` — architecture, implementation plan
+
+Note: these docs reference the old Ollama/OpenAI stack for LLM sections — this CLAUDE.md is the source of truth for the current LLM integration.

@@ -10,8 +10,7 @@
     },
     "slide_3_client_context": {
       "title": "Client Context",
-      "body_left": "Company Profile:\n- Manufacturing sector\n- 500 employees\n- \u20ac50M annual revenue\n- 200+ system users",
-      "body_right": "Key Stakeholders:\n- CTO (Decision Maker)\n- VP Engineering (Champion)\n- CFO (Budget Holder)"
+      "body": "Company Profile:\n- Manufacturing sector\n- 500 employees\n- \u20ac50M annual revenue\n- 200+ system users\n\nKey Stakeholders:\n- CTO (Decision Maker)\n- VP Engineering (Champion)\n- CFO (Budget Holder)"
     },
     "slide_4_challenges": {
       "title": "Current Challenges",
@@ -28,8 +27,7 @@
     },
     "slide_7_implementation": {
       "title": "Implementation Approach",
-      "body_left": "Phase 1 (4 weeks):\n- Assessment\n- Roadmap design\n- Quick wins identification",
-      "body_right": "Phase 2-3 (18 weeks):\n- Core ERP migration\n- Analytics layer\n- User training"
+      "body": "Phase 1 (4 weeks):\n- Assessment\n- Roadmap design\n- Quick wins identification\n\nPhase 2-3 (18 weeks):\n- Core ERP migration\n- Analytics layer\n- User training"
     },
     "slide_8_value_case": {
       "title": "Value Case",
@@ -41,8 +39,7 @@
     },
     "slide_10_risk_mitigation": {
       "title": "Risk Mitigation",
-      "body_left": "Identified Risks:\n- Data migration complexity\n- Change management\n- Integration challenges",
-      "body_right": "Mitigation Strategy:\n- Proven methodology\n- Dedicated change lead\n- Phased rollout approach"
+      "body": "Identified Risks:\n- Data migration complexity\n- Change management\n- Integration challenges\n\nMitigation Strategy:\n- Proven methodology\n- Dedicated change lead\n- Phased rollout approach"
     },
     "slide_11_proof_of_success": {
       "title": "Proof of Success",

@@ -1,21 +1,26 @@
 """Health check module for Proposal Assistant."""
 
 import json
-import os
 import time
 from pathlib import Path
 
 import httpx
 
+from proposal_assistant.config import get_config
+
+ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models"
+ANTHROPIC_VERSION_HEADER = "2023-06-01"
+HEALTH_CHECK_TIMEOUT = 10
+
 
 def check_claude_api() -> dict:
     """Check if Claude API is reachable."""
     try:
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        api_key = get_config().anthropic_api_key
         resp = httpx.get(
-            "https://api.anthropic.com/v1/models",
-            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-            timeout=10,
+            ANTHROPIC_MODELS_URL,
+            headers={"x-api-key": api_key, "anthropic-version": ANTHROPIC_VERSION_HEADER},
+            timeout=HEALTH_CHECK_TIMEOUT,
         )
         if resp.status_code == 200:
             return {"status": "healthy", "provider": "anthropic"}
@@ -55,6 +60,7 @@ def check_google_drive() -> dict:
 def check_state_storage() -> dict:
     """Check if state storage directory is writable."""
     try:
+        # Convention: data/ at project root (matches state/storage.py)
         data_dir = Path("data/threads")
         data_dir.mkdir(parents=True, exist_ok=True)
         test_file = data_dir / "_health_check.json"

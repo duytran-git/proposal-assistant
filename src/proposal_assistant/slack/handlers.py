@@ -6,10 +6,11 @@ import re
 import urllib.request
 from typing import Any
 
-import httpx
 from slack_sdk import WebClient
 
 from proposal_assistant.config import get_config
+from proposal_assistant.constants import SUPPORTED_TRANSCRIPT_EXTENSIONS
+from proposal_assistant.health import check_claude_api
 from proposal_assistant.status import BotStatus
 from proposal_assistant.docs.client import DocsClient
 from proposal_assistant.docs.deal_analysis import (
@@ -116,19 +117,21 @@ def handle_analyse_command(
         logger.error("Missing required message fields")
         return
 
-    # 2. Filter for .md files only
-    md_files = [f for f in files if f.get("name", "").lower().endswith(".md")]
-    if not md_files:
+    # 2. Filter for supported transcript files
+    supported_files = [
+        f for f in files if f.get("name", "").lower().endswith(SUPPORTED_TRANSCRIPT_EXTENSIONS)
+    ]
+    if not supported_files:
         error_msg = format_error("INPUT_INVALID")
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # 3. Download and validate all .md files
+    # 3. Download and validate all transcript files
     config = get_config()
     transcript_parts: list[str] = []
     file_ids: list[str] = []
 
-    for file_info in md_files:
+    for file_info in supported_files:
         file_name = file_info.get("name", "")
         download_url = file_info.get("url_private_download")
 
@@ -143,7 +146,13 @@ def handle_analyse_command(
                 headers={"Authorization": f"Bearer {config.slack_bot_token}"},
             )
             with urllib.request.urlopen(req) as response:
-                content = response.read().decode("utf-8")
+                raw_bytes = response.read()
+                if file_name.lower().endswith(".docx"):
+                    from proposal_assistant.utils.document_parser import parse_docx
+
+                    content = parse_docx(raw_bytes)
+                else:
+                    content = raw_bytes.decode("utf-8")
         except Exception as e:
             logger.error("Failed to download file %s: %s", file_name, e)
             error_msg = format_error("INPUT_INVALID")
@@ -161,7 +170,7 @@ def handle_analyse_command(
         file_ids.append(file_info.get("id"))
 
     # Use first file for client name extraction
-    first_file_name = md_files[0].get("name", "")
+    first_file_name = supported_files[0].get("name", "")
 
     # 4. Transition state to GENERATING_DEAL_ANALYSIS
     state_machine = StateMachine(_storage)
@@ -198,8 +207,8 @@ def handle_analyse_command(
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
-    # Upload .md transcript files to Meetings folder
-    for i, file_info in enumerate(md_files):
+    # Upload transcript files to Meetings folder
+    for i, file_info in enumerate(supported_files):
         try:
             drive.upload_file(
                 parent_id=folders["meetings_folder_id"],
@@ -373,8 +382,10 @@ def handle_propose_command(
         logger.error("Missing required message fields")
         return
 
-    # 2. Filter for .docx or .md files
-    valid_files = [f for f in files if f.get("name", "").lower().endswith((".docx", ".md"))]
+    # 2. Filter for supported transcript files
+    valid_files = [
+        f for f in files if f.get("name", "").lower().endswith(SUPPORTED_TRANSCRIPT_EXTENSIONS)
+    ]
     if not valid_files:
         error_msg = format_error("INPUT_INVALID")
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
@@ -953,11 +964,13 @@ def handle_updated_deal_analysis(
         )
         return
 
-    # 3. Filter for .docx or .md files
-    valid_files = [f for f in files if f.get("name", "").lower().endswith((".docx", ".md"))]
+    # 3. Filter for supported transcript files
+    valid_files = [
+        f for f in files if f.get("name", "").lower().endswith(SUPPORTED_TRANSCRIPT_EXTENSIONS)
+    ]
 
     if not valid_files:
-        logger.debug("No .docx or .md files found in upload")
+        logger.debug("No supported transcript files found in upload")
         return
 
     # 4. Download the first valid file
@@ -1307,20 +1320,10 @@ def handle_status_command(
     status = BotStatus.get()
 
     # Check Claude API health
-    try:
-        api_key = config.anthropic_api_key
-        resp = httpx.get(
-            "https://api.anthropic.com/v1/models",
-            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-            timeout=10,
-        )
-        api_healthy = resp.status_code == 200
-        api_status = "Online" if api_healthy else "Offline"
-        api_emoji = ":white_check_mark:" if api_healthy else ":x:"
-    except Exception as e:
-        logger.warning("Failed to check Claude API health: %s", e)
-        api_status = "Error"
-        api_emoji = ":warning:"
+    health_result = check_claude_api()
+    api_healthy = health_result["status"] == "healthy"
+    api_status = "Online" if api_healthy else "Offline"
+    api_emoji = ":white_check_mark:" if api_healthy else ":x:"
 
     # Build status message
     blocks = [

@@ -1,3 +1,4 @@
+# Standalone utility — reads env vars directly (does not require full app config)
 """Check folder permissions and type."""
 
 import os

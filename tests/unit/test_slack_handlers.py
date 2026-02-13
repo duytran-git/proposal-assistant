@@ -390,10 +390,10 @@ class TestHandleAnalyseCommandMultipleFiles:
         assert first_call[1]["event"] == Event.ANALYSE_REQUESTED
         assert first_call[1]["input_transcript_file_ids"] == ["F123", "F456"]
 
-    def test_non_md_files_are_filtered_out(
+    def test_unsupported_files_are_filtered_out(
         self, mock_say, mock_client, base_message, mock_all_dependencies
     ):
-        """Non-.md files are ignored; only .md files are processed."""
+        """Unsupported files are ignored; only .md/.txt/.docx files are processed."""
         base_message["files"] = [
             {
                 "id": "F123",
@@ -420,8 +420,58 @@ class TestHandleAnalyseCommandMultipleFiles:
         first_call = calls[0]
         assert first_call[1]["input_transcript_file_ids"] == ["F123"]
 
-    def test_only_non_md_files_shows_error(self, mock_say, mock_client, base_message):
-        """If no .md files present, shows INPUT_INVALID error."""
+    def test_txt_file_is_accepted(
+        self, mock_say, mock_client, base_message, mock_all_dependencies
+    ):
+        """.txt files are accepted in the Analyse flow."""
+        base_message["files"] = [
+            {
+                "id": "F123",
+                "name": "acme-meeting.txt",
+                "url_private_download": "https://slack.com/files/1",
+            },
+        ]
+
+        handle_analyse_command(base_message, mock_say, mock_client)
+
+        state_machine = mock_all_dependencies["StateMachine"].return_value
+        calls = state_machine.transition.call_args_list
+        first_call = calls[0]
+        assert first_call[1]["input_transcript_file_ids"] == ["F123"]
+
+    def test_docx_file_is_accepted(
+        self, mock_say, mock_client, base_message, mock_all_dependencies
+    ):
+        """.docx files are accepted in the Analyse flow."""
+        base_message["files"] = [
+            {
+                "id": "F123",
+                "name": "acme-meeting.docx",
+                "url_private_download": "https://slack.com/files/1",
+            },
+        ]
+
+        # Mock the urlopen to return binary content, and mock parse_docx
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"fake docx bytes"
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_all_dependencies["urlopen"].return_value = mock_response
+
+        with patch(
+            "proposal_assistant.utils.document_parser.parse_docx",
+            return_value="# Meeting Transcript\n\nContent here.",
+        ) as mock_parse:
+            handle_analyse_command(base_message, mock_say, mock_client)
+            mock_parse.assert_called_once_with(b"fake docx bytes")
+
+        state_machine = mock_all_dependencies["StateMachine"].return_value
+        calls = state_machine.transition.call_args_list
+        first_call = calls[0]
+        assert first_call[1]["input_transcript_file_ids"] == ["F123"]
+
+    def test_only_unsupported_files_shows_error(self, mock_say, mock_client, base_message):
+        """If no supported files present, shows INPUT_INVALID error."""
         base_message["files"] = [
             {"id": "F123", "name": "image.png", "url_private_download": "https://..."},
             {"id": "F456", "name": "doc.pdf", "url_private_download": "https://..."},
@@ -1357,8 +1407,8 @@ class TestHandleUpdatedDealAnalysis:
 
         mock_say.assert_not_called()
 
-    def test_ignores_non_docx_or_md_files(self, mock_say, mock_client, mock_thread_state_waiting):
-        """Handler ignores files that are not .docx or .md."""
+    def test_ignores_unsupported_files(self, mock_say, mock_client, mock_thread_state_waiting):
+        """Handler ignores files that are not .md, .txt, or .docx."""
         message = {
             "ts": "1706440000.000001",
             "thread_ts": "1706430000.000000",
@@ -1378,6 +1428,59 @@ class TestHandleUpdatedDealAnalysis:
             handle_updated_deal_analysis(message, mock_say, mock_client)
 
         mock_say.assert_not_called()
+
+    def test_accepts_txt_file(
+        self,
+        mock_say,
+        mock_client,
+        mock_config,
+        mock_thread_state_waiting,
+    ):
+        """Handler accepts .txt files in WAITING_FOR_APPROVAL state."""
+        message = {
+            "ts": "1706440000.000001",
+            "thread_ts": "1706430000.000000",
+            "channel": "C1234567890",
+            "user": "U1234567890",
+            "files": [
+                {
+                    "id": "F123",
+                    "name": "updated-analysis.txt",
+                    "url_private_download": "https://slack.com/files/...",
+                },
+            ],
+        }
+
+        with (
+            patch("proposal_assistant.slack.handlers.get_config") as get_config,
+            patch("proposal_assistant.slack.handlers.urllib.request.Request"),
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
+            patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
+            patch(
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
+            patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
+            patch("proposal_assistant.slack.handlers.populate_proposal_deck"),
+        ):
+            get_config.return_value = mock_config
+            StateMachine.return_value.get_state.return_value = mock_thread_state_waiting
+
+            mock_response = MagicMock()
+            mock_response.read.return_value = b"# Updated Deal Analysis\n\nNew content."
+            mock_response.__enter__ = MagicMock(return_value=mock_response)
+            mock_response.__exit__ = MagicMock(return_value=False)
+            urlopen.return_value = mock_response
+
+            mock_generate_proposal.return_value = {"content": {"slide_1_cover": {}}}
+
+            mock_slides = MagicMock()
+            mock_slides.duplicate_template.return_value = ("deck_123", "link")
+            SlidesClient.return_value = mock_slides
+
+            handle_updated_deal_analysis(message, mock_say, mock_client)
+
+        # Should send generating message and completion message
+        assert mock_say.call_count == 2
 
     def test_processes_md_file_in_waiting_state(
         self,

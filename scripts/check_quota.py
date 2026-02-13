@@ -1,3 +1,4 @@
+# Standalone utility — reads env vars directly (does not require full app config)
 """Check Google Drive storage quota for the service account."""
 
 import os

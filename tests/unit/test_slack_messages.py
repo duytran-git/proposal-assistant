@@ -188,7 +188,7 @@ class TestFormatError:
     @pytest.mark.parametrize(
         "error_type,expected_message",
         [
-            ("INPUT_MISSING", "Please attach a meeting transcript (.md file)"),
+            ("INPUT_MISSING", "Please attach a meeting transcript (.md, .txt, or .docx file)"),
             ("INPUT_INVALID", "Transcript file appears empty or invalid"),
             ("LANGUAGE_UNSUPPORTED", "Only English transcripts supported"),
             ("DRIVE_PERMISSION", "Unable to access client folder"),

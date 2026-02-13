@@ -104,7 +104,7 @@ class TestGetConfig:
             config = get_config()
 
         assert config.anthropic_model == "claude-sonnet-4-5-20250929"
-        assert config.anthropic_max_tokens == 4096
+        assert config.anthropic_max_tokens == 8192
         assert config.anthropic_temperature == 0.3
         assert config.anthropic_max_retries == 3
         assert config.anthropic_retry_backoff == "1,2,4"

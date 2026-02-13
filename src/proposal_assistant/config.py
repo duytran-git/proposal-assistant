@@ -29,7 +29,7 @@ class Config:
 
     # LLM tuning (optional with defaults)
     anthropic_model: str = "claude-sonnet-4-5-20250929"
-    anthropic_max_tokens: int = 4096
+    anthropic_max_tokens: int = 8192
     anthropic_temperature: float = 0.3
     anthropic_max_retries: int = 3
     anthropic_retry_backoff: str = "1,2,4"  # comma-separated seconds
@@ -73,7 +73,7 @@ def get_config() -> Config:
         ),
         # LLM tuning
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"),
-        anthropic_max_tokens=int(os.getenv("ANTHROPIC_MAX_TOKENS", "4096")),
+        anthropic_max_tokens=int(os.getenv("ANTHROPIC_MAX_TOKENS", "8192")),
         anthropic_temperature=float(os.getenv("ANTHROPIC_TEMPERATURE", "0.3")),
         anthropic_max_retries=int(os.getenv("ANTHROPIC_MAX_RETRIES", "3")),
         anthropic_retry_backoff=os.getenv("ANTHROPIC_RETRY_BACKOFF", "1,2,4"),

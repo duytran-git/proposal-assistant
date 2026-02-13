@@ -16,11 +16,19 @@ class TestExtractClientName:
         """Multiple dashes: only extracts before first dash."""
         assert extract_client_name("clientx-2024-01-notes.md") == "clientx"
 
-    def test_non_md_file_returns_none(self):
-        """Non-.md files should return None."""
-        assert extract_client_name("client-notes.txt") is None
+    def test_txt_file_extracts_name(self):
+        """.txt files should extract client name."""
+        assert extract_client_name("client-notes.txt") == "client"
+
+    def test_docx_file_extracts_name(self):
+        """.docx files should extract client name."""
+        assert extract_client_name("client-notes.docx") == "client"
+
+    def test_unsupported_file_returns_none(self):
+        """Unsupported file types should return None."""
         assert extract_client_name("client-data.pdf") is None
         assert extract_client_name("client-file.doc") is None
+        assert extract_client_name("client-file.csv") is None
 
     def test_uppercase_md_extension_accepted(self):
         """Case-insensitive .MD extension should work."""

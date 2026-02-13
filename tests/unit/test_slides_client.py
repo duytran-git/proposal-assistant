@@ -64,8 +64,7 @@ def sample_slide_content():
         },
         "slide_3_client_context": {
             "title": "Client Context & Objectives",
-            "body_left": "Current: Legacy ERP system",
-            "body_right": "Desired: Cloud-native platform",
+            "body": "Current: Legacy ERP system\nDesired: Cloud-native platform",
         },
         "slide_4_challenges": {
             "title": "Challenges & Business Impact",
@@ -82,8 +81,7 @@ def sample_slide_content():
         },
         "slide_7_implementation": {
             "title": "Implementation Approach",
-            "body_left": "Phase 1: Discovery\nPhase 2: Build",
-            "body_right": "8 weeks total",
+            "body": "Phase 1: Discovery\nPhase 2: Build\n8 weeks total",
         },
         "slide_8_value_case": {
             "title": "30% Cost Reduction",
@@ -95,8 +93,7 @@ def sample_slide_content():
         },
         "slide_10_risk_mitigation": {
             "title": "Risk Mitigation",
-            "body_left": "Data migration risks",
-            "body_right": "Phased rollout approach",
+            "body": "Data migration risks\nPhased rollout approach",
         },
         "slide_11_proof_of_success": {
             "title": "Proven Results",
@@ -417,13 +414,14 @@ class TestPopulateProposalDeck:
         call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
         requests = call_kwargs[1]["body"]["requests"]
 
-        # Current implementation inserts text directly without deleting first
+        # Implementation deletes existing text before inserting new content
         delete_count = sum(1 for r in requests if "deleteText" in r)
         insert_content = sum(
             1 for r in requests if "insertText" in r and r["insertText"].get("text") != FOOTER_TEXT
         )
 
-        assert delete_count == 0
+        # Each content placeholder gets a deleteText + insertText pair
+        assert delete_count == insert_content
         assert insert_content > 0
 
     @staticmethod
@@ -481,10 +479,9 @@ class TestSlideConstants:
         assert "title" in _PLACEHOLDER_FIELDS["TITLE_AND_BODY"]
         assert "body" in _PLACEHOLDER_FIELDS["TITLE_AND_BODY"]
 
-    def test_two_columns_layout_has_body_left_and_right(self):
-        assert "title" in _PLACEHOLDER_FIELDS["TITLE_AND_TWO_COLUMNS"]
-        assert "body_left" in _PLACEHOLDER_FIELDS["TITLE_AND_TWO_COLUMNS"]
-        assert "body_right" in _PLACEHOLDER_FIELDS["TITLE_AND_TWO_COLUMNS"]
+    def test_no_two_columns_layout(self):
+        # Template uses single-body layouts only; two-column layout was removed
+        assert "TITLE_AND_TWO_COLUMNS" not in _PLACEHOLDER_FIELDS
 
     def test_section_layout_has_title_subtitle_body(self):
         assert "title" in _PLACEHOLDER_FIELDS["SECTION_TITLE_AND_DESCRIPTION"]

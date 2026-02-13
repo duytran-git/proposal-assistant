@@ -2,11 +2,13 @@
 
 from typing import Optional
 
+from proposal_assistant.constants import SUPPORTED_TRANSCRIPT_EXTENSIONS
+
 
 def extract_client_name(filename: str) -> Optional[str]:
     """Extract client name from a transcript filename.
 
-    Expects filename pattern: "clientname-*.md"
+    Expects filename pattern: "clientname-*.<ext>"
     Extracts everything before the first dash.
 
     Args:
@@ -18,15 +20,17 @@ def extract_client_name(filename: str) -> Optional[str]:
     Examples:
         >>> extract_client_name("acme-corp-meeting.md")
         'acme'
-        >>> extract_client_name("clientx-2024-01-notes.md")
+        >>> extract_client_name("clientx-2024-01-notes.txt")
         'clientx'
-        >>> extract_client_name("invalid.txt")
+        >>> extract_client_name("acme-proposal.docx")
+        'acme'
+        >>> extract_client_name("invalid.pdf")
         None
         >>> extract_client_name("nodash.md")
         None
     """
-    # Must be a .md file
-    if not filename.lower().endswith(".md"):
+    # Must be a supported transcript file
+    if not filename.lower().endswith(SUPPORTED_TRANSCRIPT_EXTENSIONS):
         return None
 
     # Must contain a dash

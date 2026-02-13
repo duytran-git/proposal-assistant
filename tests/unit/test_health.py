@@ -48,16 +48,15 @@ class TestCheckClaudeApi:
         assert result["status"] == "unhealthy"
         assert "Connection refused" in result["error"]
 
-    @patch("proposal_assistant.health.httpx.get")
-    def test_uses_empty_key_when_not_set(self, mock_get, monkeypatch):
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        mock_get.return_value = MagicMock(status_code=401)
+    def test_unhealthy_when_config_unavailable(self):
+        with patch(
+            "proposal_assistant.health.get_config",
+            side_effect=ValueError("Missing required environment variable: ANTHROPIC_API_KEY"),
+        ):
+            result = check_claude_api()
 
-        result = check_claude_api()
-
-        call_headers = mock_get.call_args[1]["headers"]
-        assert call_headers["x-api-key"] == ""
-        assert result["status"] == "degraded"
+        assert result["status"] == "unhealthy"
+        assert "ANTHROPIC_API_KEY" in result["error"]
 
 
 class TestCheckGoogleDrive:

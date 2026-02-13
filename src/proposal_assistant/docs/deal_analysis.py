@@ -1,6 +1,7 @@
 """Deal Analysis document population for Google Docs."""
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -145,7 +146,8 @@ def _add_missing_info_warning(segments: list[_Segment], missing_info: list[str])
     )
     segments.append(
         _Segment(
-            "The following items could not be determined " "from the provided materials:\n",
+            "The following items could not be determined "
+            "from the provided materials and need to be confirmed:\n",
             color=red,
         )
     )
@@ -158,7 +160,7 @@ def _add_opportunity_snapshot(segments: list[_Segment], snapshot: dict[str, Any]
     """Add Section 1: Opportunity Snapshot."""
     segments.append(_Segment("1. Opportunity Snapshot\n", heading=1))
     for label, key in SNAPSHOT_FIELDS:
-        value = snapshot.get(key, "Unknown")
+        value = snapshot.get(key, "[To be confirmed]")
         segments.append(_Segment(f"{label}: ", bold=True))
         segments.append(_Segment(f"{value}\n"))
     segments.append(_Segment("\n"))
@@ -304,4 +306,45 @@ def _segments_to_requests(
 
         offset = end
 
+    # Apply bullet list formatting for lines starting with "- ", "* ", or "• "
+    _add_bullet_requests(requests, full_text)
+
     return requests
+
+
+_BULLET_PATTERN = re.compile(r"^[\-\*\u2022] ", re.MULTILINE)
+
+
+def _add_bullet_requests(
+    requests: list[dict[str, Any]],
+    full_text: str,
+) -> None:
+    """Add createParagraphBullets requests for bullet-point lines.
+
+    Detects lines starting with ``- ``, ``* ``, or ``\\u2022 `` in the
+    inserted text and applies Google Docs bullet list formatting.
+    """
+    # offset=1 because text is inserted at index 1 in the doc
+    for match in _BULLET_PATTERN.finditer(full_text):
+        line_start = match.start()
+        # Find the end of this line
+        line_end = full_text.find("\n", line_start)
+        if line_end == -1:
+            line_end = len(full_text)
+        else:
+            line_end += 1  # include the newline
+
+        doc_start = 1 + line_start
+        doc_end = 1 + line_end
+
+        requests.append(
+            {
+                "createParagraphBullets": {
+                    "range": {
+                        "startIndex": doc_start,
+                        "endIndex": doc_end,
+                    },
+                    "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
+                }
+            }
+        )

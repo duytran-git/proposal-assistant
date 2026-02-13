@@ -11,13 +11,20 @@ for a 12-slide Proposal Deck.
 Rules you MUST follow:
 - Use the client's own language and terminology from the Deal Analysis.
 - NEVER invent budgets, timelines, stakeholder names, metrics, or facts.
-- When information is missing or marked as "Unknown / Not provided", \
-write "[Manual input required]" for that field.
+- When information is missing or marked as "[To be confirmed]", \
+write "[To be confirmed]" for that field.
 - Write in concise, professional English suitable for a client-facing proposal.
-- Use bullet points for lists; keep text brief and scannable.
-- For Slide 8 (Value Case), if no KPIs or metrics are available, \
-set the title to "[Key metric - Manual input required]".
 - Each slide's content must fit the specified layout placeholders.
+
+Writing guidance:
+- Write slide body content as 3-6 bullet points, each 1-2 sentences max.
+- Start each bullet with an action verb or key noun — no filler phrases.
+- Slide 2 (Executive Summary) should be the most polished — this is the \
+first thing the client reads after the cover.
+- Slide 8 (Value Case) title should be a single bold metric or outcome \
+if data is available. If no data, use a qualitative impact statement.
+- Slide 12 (Next Steps) should have concrete, time-bound action items \
+with owners where known.
 """
 
 USER_TEMPLATE = """\
@@ -26,8 +33,8 @@ Output valid JSON matching the schema described.
 
 ## Required output (JSON)
 
-Return a single JSON object with 12 slide keys. Each slide has specific \
-placeholder fields based on its layout:
+Return a single JSON object with 12 slide keys. Each slide has a \
+"title" and "body" field (single body, not two columns):
 
 ```
 {{
@@ -37,51 +44,48 @@ placeholder fields based on its layout:
   }},
   "slide_2_executive_summary": {{
     "title": "Executive Summary",
-    "body": "Brief synthesis of situation, stakes, and expected outcomes"
+    "body": "3-5 bullets: synthesis of situation, stakes, and expected outcomes"
   }},
   "slide_3_client_context": {{
     "title": "Client Context & Objectives",
-    "body_left": "Current State: tools, what's working/not, constraints",
-    "body_right": "Desired State: outcomes, must-haves, nice-to-haves"
+    "body": "3-5 bullets: current state, constraints, and desired outcomes side by side"
   }},
   "slide_4_challenges": {{
     "title": "Challenges & Business Impact",
-    "body": "Core problems and their business impact (risks, value at stake)"
+    "body": "3-5 bullets: core problems and their business impact (risks, value at stake)"
   }},
   "slide_5_proposed_solution": {{
     "title": "Proposed Solution",
     "subtitle": "High-level solution summary (one sentence)",
-    "body": "Key capabilities and how Renessai addresses top pains"
+    "body": "3-5 bullets: key capabilities and how Renessai addresses top pains"
   }},
   "slide_6_solution_scope": {{
     "title": "Solution Details & Scope",
-    "body": "Must-haves, nice-to-haves, and scope boundaries"
+    "body": "3-5 bullets: must-haves, nice-to-haves, and scope boundaries"
   }},
   "slide_7_implementation": {{
     "title": "Implementation Approach",
-    "body_left": "Delivery phases and key milestones",
-    "body_right": "Timeline and phasing"
+    "body": "3-5 bullets: delivery phases, milestones, timeline, and phasing"
   }},
   "slide_8_value_case": {{
     "title": "Key metric or expected outcome (e.g., '30% cost reduction')",
-    "body": "Supporting context and how this value will be achieved"
+    "body": "3-5 bullets: supporting context and how this value will be achieved"
   }},
   "slide_9_commercials": {{
     "title": "Investment & Terms",
-    "body": "Budget range, pricing approach, and commercial terms"
+    "body": "3-5 bullets: budget range, pricing approach, and commercial terms"
   }},
   "slide_10_risk_mitigation": {{
     "title": "Risk Mitigation",
-    "body_left": "Key risks and concerns",
-    "body_right": "Mitigation strategies and assurances"
+    "body": "3-5 bullets: key risks paired with their mitigation strategies"
   }},
   "slide_11_proof_of_success": {{
     "title": "Proven Results",
-    "body": "Relevant case studies and proof points"
+    "body": "3-5 bullets: relevant case studies and proof points"
   }},
   "slide_12_next_steps": {{
     "title": "Next Steps",
-    "body": "Concrete action items with owners and target dates"
+    "body": "3-5 bullets: concrete action items with owners and target dates"
   }}
 }}
 ```
@@ -105,8 +109,8 @@ Use the following mapping to source content:
 | 11 Proof of Success | proof_next_actions.proof_points_to_use |
 | 12 Next Steps | proof_next_actions.next_steps |
 
-For any field marked "Unknown / Not provided" in the Deal Analysis, \
-use "[Manual input required]" in the corresponding slide content.
+For any field marked "[To be confirmed]" in the Deal Analysis, \
+use "[To be confirmed]" in the corresponding slide content.
 
 ## Deal Analysis
 

@@ -40,25 +40,19 @@ logger = logging.getLogger(__name__)
 
 
 def _get_llm_config() -> tuple[str, int, list[int], int, int, float, int]:
-    """Return LLM config values from env/Config, with sensible defaults."""
-    try:
-        cfg = get_config()
-        model = cfg.anthropic_model
-        max_retries = cfg.anthropic_max_retries
-        backoff = [int(s) for s in cfg.anthropic_retry_backoff.split(",")]
-        chunk_threshold = cfg.anthropic_chunk_threshold
-        chunk_size = cfg.anthropic_chunk_size
-        temperature = cfg.anthropic_temperature
-        max_tokens = cfg.anthropic_max_tokens
-    except Exception:
-        # Fallback defaults (e.g. during tests without full env)
-        model = "claude-sonnet-4-5-20250929"
-        max_retries = 3
-        backoff = [1, 2, 4]
-        chunk_threshold = 32_000
-        chunk_size = 8_000
-        temperature = 0.3
-        max_tokens = 4096
+    """Return LLM config values from env/Config.
+
+    Raises if config cannot be loaded — tests should mock get_config() or
+    set the required env vars rather than silently using stale defaults.
+    """
+    cfg = get_config()
+    model = cfg.anthropic_model
+    max_retries = cfg.anthropic_max_retries
+    backoff = [int(s) for s in cfg.anthropic_retry_backoff.split(",")]
+    chunk_threshold = cfg.anthropic_chunk_threshold
+    chunk_size = cfg.anthropic_chunk_size
+    temperature = cfg.anthropic_temperature
+    max_tokens = cfg.anthropic_max_tokens
     return model, max_retries, backoff, chunk_threshold, chunk_size, temperature, max_tokens
 
 
@@ -260,6 +254,7 @@ async def _summarize_chunk(chunk: str) -> str:
         return ""
 
     prompt = _SUMMARIZE_CHUNK_USER.format(chunk=chunk)
+    # Intentionally lower than default for deterministic summarization
     return await _query_with_retry(prompt, system_prompt=_SUMMARIZE_CHUNK_SYSTEM, temperature=0.2)
 
 
@@ -376,6 +371,21 @@ async def generate_deal_analysis(
         )
     if not isinstance(missing_info, list):
         missing_info = []
+
+    # Validate all required sections are present
+    _REQUIRED_SECTIONS = [
+        "opportunity_snapshot",
+        "problem_impact",
+        "current_desired_state",
+        "buying_dynamics",
+        "renessai_fit",
+        "proof_next_actions",
+    ]
+    missing_sections = [s for s in _REQUIRED_SECTIONS if s not in content]
+    if missing_sections:
+        logger.warning(
+            "Deal analysis missing sections: %s", ", ".join(missing_sections)
+        )
 
     logger.info("Deal analysis generated (%d missing items)", len(missing_info))
 

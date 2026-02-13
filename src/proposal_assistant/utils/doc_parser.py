@@ -64,10 +64,10 @@ def parse_deal_analysis(content: bytes | str, filename: str = "") -> dict[str, A
     """
     # 1. Extract text based on file type
     if isinstance(content, bytes):
-        if filename.lower().endswith(".md"):
+        if filename.lower().endswith((".md", ".txt")):
             text = content.decode("utf-8")
         else:
-            # Assume .docx for bytes without .md extension
+            # Assume .docx for bytes without .md/.txt extension
             text = parse_docx(content)
     else:
         text = parse_markdown(content)

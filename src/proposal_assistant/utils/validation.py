@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from proposal_assistant.constants import SUPPORTED_FORMATS_DISPLAY, SUPPORTED_TRANSCRIPT_EXTENSIONS
+
 
 @dataclass(frozen=True)
 class ValidationResult:
@@ -32,11 +34,11 @@ def validate_transcript(file_path: str, content: str) -> ValidationResult:
         ValidationResult indicating success or failure with error details.
     """
     # Check file extension
-    if not file_path.lower().endswith(".md"):
+    if not file_path.lower().endswith(SUPPORTED_TRANSCRIPT_EXTENSIONS):
         return ValidationResult(
             is_valid=False,
             error_type="invalid_extension",
-            error_message="Transcript file must have .md extension",
+            error_message=f"Transcript file must be {SUPPORTED_FORMATS_DISPLAY}",
         )
 
     # Check content is non-empty

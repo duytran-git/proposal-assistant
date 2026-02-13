@@ -4,7 +4,7 @@ from typing import Any
 
 # Error type to user-friendly message mapping (from docs/technical-design.md Appendix A)
 ERROR_MESSAGES: dict[str, str] = {
-    "INPUT_MISSING": "Please attach a meeting transcript (.md file)",
+    "INPUT_MISSING": "Please attach a meeting transcript (.md, .txt, or .docx file)",
     "INPUT_INVALID": "Transcript file appears empty or invalid",
     "LANGUAGE_UNSUPPORTED": "Only English transcripts supported",
     "DRIVE_PERMISSION": "Unable to access client folder",

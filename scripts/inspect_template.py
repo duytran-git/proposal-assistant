@@ -1,3 +1,4 @@
+# Standalone utility — reads env vars directly (does not require full app config)
 """Inspect the structure of the Google Slides template."""
 
 import os
