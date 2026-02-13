@@ -383,9 +383,7 @@ async def generate_deal_analysis(
     ]
     missing_sections = [s for s in _REQUIRED_SECTIONS if s not in content]
     if missing_sections:
-        logger.warning(
-            "Deal analysis missing sections: %s", ", ".join(missing_sections)
-        )
+        logger.warning("Deal analysis missing sections: %s", ", ".join(missing_sections))
 
     logger.info("Deal analysis generated (%d missing items)", len(missing_info))
 

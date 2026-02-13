@@ -420,9 +420,7 @@ class TestHandleAnalyseCommandMultipleFiles:
         first_call = calls[0]
         assert first_call[1]["input_transcript_file_ids"] == ["F123"]
 
-    def test_txt_file_is_accepted(
-        self, mock_say, mock_client, base_message, mock_all_dependencies
-    ):
+    def test_txt_file_is_accepted(self, mock_say, mock_client, base_message, mock_all_dependencies):
         """.txt files are accepted in the Analyse flow."""
         base_message["files"] = [
             {
