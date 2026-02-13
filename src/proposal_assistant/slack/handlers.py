@@ -135,7 +135,10 @@ def handle_analyse_command(
         file_name = file_info.get("name", "")
         download_url = file_info.get("url_private_download")
 
+        logger.info("Processing file: name=%s, has_url=%s", file_name, bool(download_url))
+
         if not download_url:
+            logger.error("No download URL for file %s", file_name)
             error_msg = format_error("INPUT_INVALID")
             say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
             return
@@ -147,6 +150,9 @@ def handle_analyse_command(
             )
             with urllib.request.urlopen(req) as response:
                 raw_bytes = response.read()
+                logger.info(
+                    "Downloaded file %s: %d bytes", file_name, len(raw_bytes)
+                )
                 if file_name.lower().endswith(".docx"):
                     from proposal_assistant.utils.document_parser import parse_docx
 
@@ -154,7 +160,7 @@ def handle_analyse_command(
                 else:
                     content = raw_bytes.decode("utf-8")
         except Exception as e:
-            logger.error("Failed to download file %s: %s", file_name, e)
+            logger.error("Failed to download file %s: %s", file_name, e, exc_info=True)
             error_msg = format_error("INPUT_INVALID")
             say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
             return
@@ -162,6 +168,12 @@ def handle_analyse_command(
         # Validate each transcript
         validation = validate_transcript(file_name, content)
         if not validation.is_valid:
+            logger.error(
+                "Transcript validation failed for %s: type=%s, msg=%s",
+                file_name,
+                validation.error_type,
+                validation.error_message,
+            )
             error_msg = format_error("INPUT_INVALID")
             say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
             return

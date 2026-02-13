@@ -99,15 +99,30 @@ def create_app() -> App:
 
 def main() -> None:
     """Run the bot in Socket Mode."""
+    import sys
+
     config = get_config()
 
     # Configure structured logging with config log level
     setup_logging(config.log_level)
     logger = get_logger(__name__)
 
+    # Ensure root proposal_assistant logger also outputs to stderr for Docker
+    import logging
+
+    root_pa_logger = logging.getLogger("proposal_assistant")
+    if not any(isinstance(h, logging.StreamHandler) for h in root_pa_logger.handlers):
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.DEBUG)
+        stderr_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+        root_pa_logger.addHandler(stderr_handler)
+
     app = create_app()
 
     logger.info("Starting Proposal Assistant bot in Socket Mode...")
+    print("Proposal Assistant bot starting...", file=sys.stderr, flush=True)
     handler = SocketModeHandler(app, config.slack_app_token)
     handler.start()
 
