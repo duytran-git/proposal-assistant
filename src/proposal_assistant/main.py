@@ -41,17 +41,28 @@ def create_app() -> App:
     # This catches file_share messages (which have subtypes and skip @app.message)
     @app.event("message")
     def handle_message_event(event, say, client):
+        import sys
+
         logger = get_logger(__name__)
         subtype = event.get("subtype", "")
         text = event.get("text", "")
         has_files = bool(event.get("files"))
 
+        print(
+            f"[EVENT] subtype={subtype!r} text={text[:80]!r} has_files={has_files} "
+            f"bot_id={event.get('bot_id')}",
+            file=sys.stderr,
+            flush=True,
+        )
+
         # Skip bot messages to avoid self-triggering
         if event.get("bot_id") or subtype == "bot_message":
+            print("[EVENT] Skipping bot message", file=sys.stderr, flush=True)
             return
 
         # Skip messages without subtype — @app.message() handlers already cover those
         if not subtype:
+            print("[EVENT] Skipping no-subtype (handled by @app.message)", file=sys.stderr, flush=True)
             return
 
         logger.info(

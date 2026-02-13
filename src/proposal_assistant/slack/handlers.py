@@ -90,11 +90,20 @@ def handle_analyse_command(
         say: Slack say function for replying in thread.
         client: Slack WebClient for API calls.
     """
+    import sys
+
     thread_ts: str | None = message.get("thread_ts") or message.get("ts")
     channel: str | None = message.get("channel")
     channel_type: str | None = message.get("channel_type")
     user_id: str | None = message.get("user")
     files = message.get("files", [])
+
+    print(
+        f"[ANALYSE] channel={channel} thread={thread_ts} files={len(files)} "
+        f"filenames={[f.get('name') for f in files]}",
+        file=sys.stderr,
+        flush=True,
+    )
 
     logger.info(
         "Received Analyse command in channel=%s thread=%s channel_type=%s",
@@ -108,6 +117,7 @@ def handle_analyse_command(
 
     # 1. Check for file attachments
     if not files:
+        print("[ANALYSE] ERROR: no files attached", file=sys.stderr, flush=True)
         error_msg = format_error("INPUT_MISSING")
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
@@ -122,6 +132,11 @@ def handle_analyse_command(
         f for f in files if f.get("name", "").lower().endswith(SUPPORTED_TRANSCRIPT_EXTENSIONS)
     ]
     if not supported_files:
+        print(
+            f"[ANALYSE] ERROR: no supported files. Got: {[f.get('name') for f in files]}",
+            file=sys.stderr,
+            flush=True,
+        )
         error_msg = format_error("INPUT_INVALID")
         say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
