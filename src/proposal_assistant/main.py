@@ -45,13 +45,22 @@ def create_app() -> App:
         subtype = event.get("subtype", "")
         text = event.get("text", "")
         has_files = bool(event.get("files"))
+
+        # Skip bot messages to avoid self-triggering
+        if event.get("bot_id") or subtype == "bot_message":
+            return
+
+        # Skip messages without subtype — @app.message() handlers already cover those
+        if not subtype:
+            return
+
         logger.info(
             "Message event received: subtype=%r, text=%r, has_files=%s",
             subtype,
             text[:100] if text else "",
             has_files,
         )
-        if event.get("files"):
+        if has_files:
             if "Analyse" in text:
                 logger.info("Routing to handle_analyse_command")
                 handle_analyse_command(event, say, client)
