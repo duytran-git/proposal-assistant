@@ -98,7 +98,7 @@ def populate_proposal_deck(
         slides._slides_service.presentations()
         .get(
             presentationId=presentation_id,
-            fields="slides(objectId,pageElements(objectId,shape(placeholder(type,index),shapeType),title))",
+            fields="slides(objectId,pageElements(objectId,shape(placeholder(type,index),shapeType,text(textElements(textRun(content)))),title))",
         )
         .execute()
     )
@@ -151,14 +151,14 @@ def _add_slide_content_requests(
         if text is None:
             continue
 
-        object_id = shape_lookup.get((ph_type, ph_index))
+        result = shape_lookup.get((ph_type, ph_index))
         # Fallback: match by placeholder type alone when exact index not found
-        if object_id is None:
-            for (t, _idx), oid in shape_lookup.items():
+        if result is None:
+            for (t, _idx), val in shape_lookup.items():
                 if t == ph_type:
-                    object_id = oid
+                    result = val
                     break
-        if object_id is None:
+        if result is None:
             logger.warning(
                 "Placeholder %s (idx %d) not found on slide %s",
                 ph_type,
@@ -167,15 +167,18 @@ def _add_slide_content_requests(
             )
             continue
 
-        # Delete existing placeholder text before inserting new content
-        requests.append(
-            {
-                "deleteText": {
-                    "objectId": object_id,
-                    "textRange": {"type": "ALL"},
+        object_id, has_text = result
+
+        # Only delete existing text if the placeholder is non-empty
+        if has_text:
+            requests.append(
+                {
+                    "deleteText": {
+                        "objectId": object_id,
+                        "textRange": {"type": "ALL"},
+                    }
                 }
-            }
-        )
+            )
         requests.append(
             {
                 "insertText": {
@@ -189,20 +192,27 @@ def _add_slide_content_requests(
 
 def _build_shape_lookup(
     slide_page: dict[str, Any],
-) -> dict[tuple[str, int], str]:
-    """Build a lookup from (placeholder_type, index) to shape object ID.
+) -> dict[tuple[str, int], tuple[str, bool]]:
+    """Build a lookup from (placeholder_type, index) to (object_id, has_text).
 
     Handles both native Google Slides placeholders and converted PPTX shapes.
     """
-    lookup: dict[tuple[str, int], str] = {}
+    lookup: dict[tuple[str, int], tuple[str, bool]] = {}
     for element in slide_page.get("pageElements", []):
-        # Try native placeholder first
         shape = element.get("shape", {})
         ph = shape.get("placeholder") or element.get("placeholder")
         if ph:
             ph_type = ph.get("type", "")
             ph_index = ph.get("index", 0)
-            lookup[(ph_type, ph_index)] = element["objectId"]
+            # Check if shape has any text content
+            has_text = False
+            text_obj = shape.get("text", {})
+            for te in text_obj.get("textElements", []):
+                text_run = te.get("textRun", {})
+                if text_run.get("content", "").strip():
+                    has_text = True
+                    break
+            lookup[(ph_type, ph_index)] = (element["objectId"], has_text)
     return lookup
 
 
