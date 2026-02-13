@@ -165,9 +165,7 @@ def handle_analyse_command(
             )
             with urllib.request.urlopen(req) as response:
                 raw_bytes = response.read()
-                logger.info(
-                    "Downloaded file %s: %d bytes", file_name, len(raw_bytes)
-                )
+                logger.info("Downloaded file %s: %d bytes", file_name, len(raw_bytes))
                 if file_name.lower().endswith(".docx"):
                     from proposal_assistant.utils.document_parser import parse_docx
 

@@ -27,18 +27,22 @@ def create_app() -> App:
         signing_secret=config.slack_signing_secret,
     )
 
-    # Register message handler for "Analyse" command with file attachments
+    # Register message handler for "Analyse" — only text-only (no files).
+    # File uploads are handled by @app.event("message") below to cover all subtypes.
     @app.message("Analyse")
     def analyse_message(message, say, client):
-        handle_analyse_command(message, say, client)
+        if not message.get("files"):
+            handle_analyse_command(message, say, client)
 
-    # Register message handler for "Propose" command with file attachments
+    # Register message handler for "Propose" — only text-only (no files).
     @app.message("Propose")
     def propose_message(message, say, client):
-        handle_propose_command(message, say, client)
+        if not message.get("files"):
+            handle_propose_command(message, say, client)
 
-    # Register message event listener for file uploads
-    # This catches file_share messages (which have subtypes and skip @app.message)
+    # Catch ALL message events including file_share subtypes.
+    # @app.message() only fires for messages without a subtype, so file uploads
+    # (subtype=file_share) must be routed here.
     @app.event("message")
     def handle_message_event(event, say, client):
         import sys
@@ -60,27 +64,26 @@ def create_app() -> App:
             print("[EVENT] Skipping bot message", file=sys.stderr, flush=True)
             return
 
-        # Skip messages without subtype — @app.message() handlers already cover those
-        if not subtype:
-            print("[EVENT] Skipping no-subtype (handled by @app.message)", file=sys.stderr, flush=True)
+        # Only handle messages with files — text-only handled by @app.message()
+        if not has_files:
             return
 
         logger.info(
-            "Message event received: subtype=%r, text=%r, has_files=%s",
+            "File message event: subtype=%r, text=%r, has_files=%s",
             subtype,
             text[:100] if text else "",
             has_files,
         )
-        if has_files:
-            if "Analyse" in text:
-                logger.info("Routing to handle_analyse_command")
-                handle_analyse_command(event, say, client)
-            elif "Propose" in text:
-                logger.info("Routing to handle_propose_command")
-                handle_propose_command(event, say, client)
-            else:
-                logger.info("Routing to handle_updated_deal_analysis")
-                handle_updated_deal_analysis(event, say, client)
+
+        if "Analyse" in text:
+            logger.info("Routing file upload to handle_analyse_command")
+            handle_analyse_command(event, say, client)
+        elif "Propose" in text:
+            logger.info("Routing file upload to handle_propose_command")
+            handle_propose_command(event, say, client)
+        else:
+            logger.info("Routing file upload to handle_updated_deal_analysis")
+            handle_updated_deal_analysis(event, say, client)
 
     # Register action handlers for approval buttons
     @app.action("approve_deck")
