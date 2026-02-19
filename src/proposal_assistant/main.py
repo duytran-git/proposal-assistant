@@ -27,30 +27,20 @@ def create_app() -> App:
         signing_secret=config.slack_signing_secret,
     )
 
-    # Register message handler for "Analyse" — only text-only (no files).
-    # File uploads are handled by @app.event("message") below to cover all subtypes.
-    @app.message("Analyse")
-    def analyse_message(message, say, client):
-        if not message.get("files"):
-            handle_analyse_command(message, say, client)
-
-    # Register message handler for "Propose" — only text-only (no files).
-    @app.message("Propose")
-    def propose_message(message, say, client):
-        if not message.get("files"):
-            handle_propose_command(message, say, client)
-
-    # Catch ALL message events including file_share subtypes.
-    # @app.message() only fires for messages without a subtype, so file uploads
-    # (subtype=file_share) must be routed here.
+    # Single handler for ALL message events — covers text-only, file uploads (modern
+    # Files API V2 with no subtype), and legacy file_share subtype. Using @app.message()
+    # alongside @app.event("message") causes Bolt to dispatch ambiguously: for no-subtype
+    # file uploads, @app.message("Analyse") fires and returns early (no files guard), so
+    # @app.event("message") may never fire, leaving the user with no response.
     @app.event("message")
     def handle_message_event(event, say, client):
         import sys
 
         logger = get_logger(__name__)
         subtype = event.get("subtype", "")
-        text = event.get("text", "")
-        has_files = bool(event.get("files"))
+        text = event.get("text", "") or ""
+        # Handle both modern (files list) and legacy (file singular) Slack event formats
+        has_files = bool(event.get("files")) or bool(event.get("file"))
 
         print(
             f"[EVENT] subtype={subtype!r} text={text[:80]!r} has_files={has_files} "
@@ -64,26 +54,22 @@ def create_app() -> App:
             print("[EVENT] Skipping bot message", file=sys.stderr, flush=True)
             return
 
-        # Only handle messages with files — text-only handled by @app.message()
-        if not has_files:
-            return
-
-        logger.info(
-            "File message event: subtype=%r, text=%r, has_files=%s",
-            subtype,
-            text[:100] if text else "",
-            has_files,
-        )
-
+        # Route on keyword — works for both text-only and file upload messages
         if "Analyse" in text:
-            logger.info("Routing file upload to handle_analyse_command")
+            logger.info(
+                "Routing to handle_analyse_command: subtype=%r has_files=%s", subtype, has_files
+            )
             handle_analyse_command(event, say, client)
         elif "Propose" in text:
-            logger.info("Routing file upload to handle_propose_command")
+            logger.info(
+                "Routing to handle_propose_command: subtype=%r has_files=%s", subtype, has_files
+            )
             handle_propose_command(event, say, client)
-        else:
-            logger.info("Routing file upload to handle_updated_deal_analysis")
+        elif has_files:
+            # File without a keyword = updated deal analysis upload
+            logger.info("Routing file-only upload to handle_updated_deal_analysis")
             handle_updated_deal_analysis(event, say, client)
+        # else: no keyword, no files — ignore silently
 
     # Register action handlers for approval buttons
     @app.action("approve_deck")

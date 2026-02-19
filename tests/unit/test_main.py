@@ -43,8 +43,12 @@ class TestCreateApp:
             )
             assert result is mock_app
 
-    def test_registers_analyse_message_handler(self, mock_config):
-        """create_app registers a message handler for 'Analyse' command."""
+    def test_registers_message_event_handler_not_app_message(self, mock_config):
+        """create_app uses @app.event('message') for all routing, not @app.message().
+
+        Routing is consolidated into a single @app.event('message') handler to avoid
+        ambiguous dispatch for modern Slack file uploads (no file_share subtype).
+        """
         with (
             patch("proposal_assistant.main.get_config", return_value=mock_config),
             patch("proposal_assistant.main.App") as mock_app_cls,
@@ -56,10 +60,10 @@ class TestCreateApp:
 
             create_app()
 
-            # Verify @app.message decorators were called for Analyse and Propose
-            mock_app.message.assert_any_call("Analyse")
-            mock_app.message.assert_any_call("Propose")
-            assert mock_app.message.call_count == 2
+            # @app.message() must NOT be used — it conflicts with @app.event("message")
+            mock_app.message.assert_not_called()
+            # @app.event("message") must be registered
+            mock_app.event.assert_any_call("message")
 
 
 class TestMain:

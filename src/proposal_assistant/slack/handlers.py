@@ -124,7 +124,15 @@ def handle_analyse_command(
 
     # Validate required fields
     if not channel or not thread_ts or not user_id:
-        logger.error("Missing required message fields")
+        logger.error(
+            "Missing required message fields: channel=%s thread=%s user=%s",
+            channel,
+            thread_ts,
+            user_id,
+        )
+        if channel and thread_ts:
+            error_msg = format_error("INPUT_INVALID")
+            say(text=error_msg["text"], blocks=error_msg["blocks"], thread_ts=thread_ts)
         return
 
     # 2. Filter for supported transcript files
