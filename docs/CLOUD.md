@@ -21,6 +21,218 @@ GCE VM: proposal-assistant-prod (europe-north1-b)
 
 ---
 
+## Git Branch Workflow
+
+### Create a new branch
+
+Always branch off the current working branch (e.g. `production-deploy-beta`), not `main`, unless starting fresh.
+
+```bash
+# See which branch you are currently on
+git branch
+
+# Create a new branch from the current one and switch to it
+git checkout -b <new-branch-name>
+
+# Example:
+git checkout -b production-deploy-gamma
+```
+
+Branch naming convention used in this project: `production-deploy-<greek-letter>` for each new deploy iteration.
+
+---
+
+### Push the branch to GitHub (remote)
+
+After committing your changes:
+
+```bash
+# First push — sets up tracking so future pushes just need `git push`
+git push -u origin <new-branch-name>
+
+# Subsequent pushes on the same branch
+git push
+```
+
+---
+
+### Pull the branch on the VM
+
+After pushing, switch the VM to the new branch and pull the latest code:
+
+```bash
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && \
+    sudo git fetch origin && \
+    sudo git checkout <new-branch-name> && \
+    sudo git pull origin <new-branch-name>"
+```
+
+- `git fetch origin` — downloads all new branches and commits from GitHub without changing anything yet
+- `git checkout <branch>` — switches the VM to that branch (first time only; subsequent pulls just need `git pull`)
+- `git pull origin <branch>` — brings the VM's code up to date with the remote
+
+Then continue with `docker compose build --no-cache && docker compose up -d` as in the Deployment section below.
+
+---
+
+### Full sequence: new branch → push → deploy
+
+```bash
+# 1. On your laptop — create branch, make changes, commit, push
+git checkout -b production-deploy-gamma
+git add src/proposal_assistant/main.py   # add your changed files
+git commit -m "Describe what changed"
+git push -u origin production-deploy-gamma
+
+# 2. Copy .env if it changed (skip if not)
+gcloud compute scp .env proposal-assistant-prod:/opt/proposal-assistant/.env --zone=europe-north1-b
+
+# 3. On the VM — pull and rebuild
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && \
+    sudo git fetch origin && \
+    sudo git checkout production-deploy-gamma && \
+    sudo git pull origin production-deploy-gamma && \
+    sudo docker compose build --no-cache && \
+    sudo docker compose up -d"
+
+# 4. Verify
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && \
+    sudo docker compose ps && \
+    sudo docker compose logs --tail=20"
+```
+
+---
+
+## Deploying Updates to the VM
+
+### Scenario A — Code / script changes
+
+Use this whenever you modify any Python source files.
+
+**Step 1 — On your laptop: commit and push**
+
+```bash
+# Stage only the files you changed (never stage .env, data/, or docs/ unless intentional)
+git add src/proposal_assistant/main.py src/proposal_assistant/slack/handlers.py
+# ... add whichever files changed
+
+git commit -m "Short description of what changed"
+git push origin <your-branch>
+```
+
+**Step 2 — On the VM: pull and rebuild**
+
+```bash
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && \
+    sudo git fetch origin && \
+    sudo git checkout <your-branch> && \
+    sudo git pull origin <your-branch> && \
+    sudo docker compose build --no-cache && \
+    sudo docker compose up -d"
+```
+
+Replace `<your-branch>` with the branch name (e.g. `production-deploy-beta`).
+
+**Step 3 — Verify**
+
+```bash
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && \
+    sudo docker compose ps && \
+    sudo docker compose logs --tail=20"
+```
+
+Expected: `STATUS` shows `Up X seconds (healthy)` and logs show `Proposal Assistant bot starting...`
+
+---
+
+### Scenario B — .env key changes only (no code changed)
+
+The `.env` file lives directly on the VM at `/opt/proposal-assistant/.env` — it is **not** in git (it contains secrets). A restart (no rebuild) is enough because the image doesn't change.
+
+**Step 1 — Edit your local `.env`, then copy it to the VM**
+
+```bash
+# From your LOCAL machine:
+gcloud compute scp .env proposal-assistant-prod:/opt/proposal-assistant/.env --zone=europe-north1-b
+```
+
+**Step 2 — Restart the container (no rebuild needed)**
+
+```bash
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && sudo docker compose up -d"
+```
+
+**Step 3 — Verify**
+
+```bash
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && sudo docker compose ps && sudo docker compose logs --tail=20"
+```
+
+Expected: `Up X seconds (healthy)` and `Proposal Assistant bot starting...`
+
+---
+
+### Scenario C — Both code and .env changed
+
+**Step 1 — On your laptop: commit and push**
+
+```bash
+git add src/proposal_assistant/main.py src/proposal_assistant/slack/handlers.py
+# ... add whichever files changed
+
+git commit -m "Short description of what changed"
+git push origin <your-branch>
+```
+
+**Step 2 — Copy your updated .env to the VM**
+
+```bash
+# From your LOCAL machine:
+gcloud compute scp .env proposal-assistant-prod:/opt/proposal-assistant/.env --zone=europe-north1-b
+```
+
+**Step 3 — Pull new code and rebuild on the VM**
+
+```bash
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && \
+    sudo git fetch origin && \
+    sudo git checkout <your-branch> && \
+    sudo git pull origin <your-branch> && \
+    sudo docker compose build --no-cache && \
+    sudo docker compose up -d"
+```
+
+**Step 4 — Verify**
+
+```bash
+gcloud compute ssh proposal-assistant-prod --zone=europe-north1-b \
+  --command="cd /opt/proposal-assistant && \
+    sudo docker compose ps && \
+    sudo docker compose logs --tail=20"
+```
+
+Expected: `STATUS` shows `Up X seconds (healthy)` and logs show `Proposal Assistant bot starting...`
+
+---
+
+### Quick reference
+
+| Changed | Command on VM | Rebuild? |
+|---------|---------------|----------|
+| Python source files | `git pull` → `docker compose build --no-cache` → `docker compose up -d` | Yes |
+| `.env` keys only | Edit `.env` on VM → `docker compose up -d` | No |
+| Both | `git pull` → `docker compose build --no-cache` → edit `.env` → `docker compose up -d` | Yes |
+
+---
+
 ## How to Check It's Running
 
 ### Quick status check
@@ -67,6 +279,10 @@ Just send a message to the bot. If it responds, it's running.
 ---
 
 ## How to Stop It
+
+```bash
+gcloud auth login
+```
 
 ### Stop the bot (keep VM running)
 
