@@ -1,115 +1,379 @@
 # Proposal Assistant
 
-Slack bot that turns meeting transcripts into Deal Analysis docs and Proposal Decks.
+A Slack bot that analyzes meeting transcripts and generates proposal documents using AI.
 
-## Description
+## Features
 
-Proposal Assistant is a Slack bot for Renessai consultants and salespeople. Users upload `.md` meeting transcripts and the bot generates a structured Deal Analysis (Google Doc) summarizing client discovery findings. After an approval gate, it creates a Proposal Deck (Google Slides) from Renessai's standard template. Powered by Anthropic's Claude API — no local model or GPU required.
+- 📝 Analyzes meeting transcripts (.md, .txt, .docx files) to extract deal information
+- 📄 Generates Deal Analysis documents in Google Docs
+- 📊 Creates Proposal Decks in Google Slides from approved analyses
+- 🤖 AI-powered analysis using Claude API (Anthropic)
+- 🌐 Fetches and incorporates web content from URLs in messages
+- 👥 Automatically shares documents with Slack channel members
 
-## Prerequisites
+## Architecture
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) package manager (or pip3 as fallback)
-- Slack app configured for Socket Mode with bot and app-level tokens
-- Google Cloud service account with Drive, Docs, and Slides APIs enabled
-- Anthropic API key from [console.anthropic.com](https://console.anthropic.com)
-- Google Drive root folder ID for client document storage
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Slack     │────▶│  Proposal    │────▶│   Google    │
+│   User      │◀────│  Assistant   │◀────│   Drive     │
+└─────────────┘     └──────────────┘     └─────────────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │  LLM Engine  │
+                    │ (Claude API) │
+                    └──────────────┘
+```
+
+## Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        PROPOSAL ASSISTANT WORKFLOW                   │
+└─────────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────┐
+    │ 1. User      │  Upload .md, .txt, or .docx transcript
+    │    uploads   │  with message "Analyse"
+    │    file      │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ 2. Bot       │  • Extracts client name from transcript
+    │    analyzes  │  • Creates folder structure in Shared Drive
+    │    transcript│  • Builds context for LLM
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ 3. LLM       │  • Generates Deal Analysis content
+    │    generates │  • Identifies missing information
+    │    analysis  │  • Extracts key deal details
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ 4. Bot       │  • Creates Google Doc in Shared Drive
+    │    creates   │  • Populates with Deal Analysis
+    │    Doc       │  • Shares with channel members
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ 5. User      │  • Reviews Deal Analysis document
+    │    reviews   │  • Clicks [Approve] or [Reject]
+    │    & approves│
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ 6. LLM       │  • Generates 12-slide proposal content
+    │    generates │  • Uses Deal Analysis as input
+    │    proposal  │
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ 7. Bot       │  • Duplicates Slides template
+    │    creates   │  • Populates slides with content
+    │    Deck      │  • Shares with channel members
+    └──────┬───────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ 8. Done!     │  User receives link to
+    │              │  completed Proposal Deck
+    └──────────────┘
+```
 
 ## Quick Start
 
+### 1. Prerequisites
+
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv) package manager
+- Slack workspace with admin access
+- Google Cloud project with Drive, Docs, and Slides APIs enabled
+- Anthropic API key ([console.anthropic.com](https://console.anthropic.com))
+
+### 2. Installation
+
 ```bash
-# 1. Clone and install
-git clone <repo-url>
-cd proposal-assistant
-uv sync              # or: pip3 install -e ".[dev]"
+# Clone and install dependencies
+git clone <repository-url>
+cd proposal-assistant-v1
+uv sync
+```
 
-# 2. Configure environment
+### 3. Google Cloud Setup
+
+#### 3.1 Create Service Account
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Enable APIs:
+   - Google Drive API
+   - Google Docs API
+   - Google Slides API
+4. Create a Service Account:
+   - Go to IAM & Admin → Service Accounts
+   - Create service account (e.g., `proposal-bot`)
+   - Create JSON key and download it
+5. Save the key to `keys/` folder
+
+#### 3.2 Create Shared Drive (Required)
+
+**Important:** Service accounts have no personal Drive storage. You must use a Shared Drive.
+
+1. In Google Drive, create a new Shared Drive (e.g., "Proposal Assistant")
+2. Add the service account email as a **Content Manager**:
+   ```
+   proposal-bot-v1@your-project.iam.gserviceaccount.com
+   ```
+3. Create a root folder in the Shared Drive for proposals
+4. Copy the folder ID from the URL (the part after `/folders/`)
+
+#### 3.3 Proposal Template Setup
+
+The bot uses a local PPTX template by default (`PROPOSAL_TEMPLATE_PATH`). Optionally, you can also use a Google Slides template as a fallback:
+
+1. Upload your PowerPoint template (`.pptx`) to the Shared Drive
+2. Right-click → Open with → Google Slides (converts it)
+3. Copy the presentation ID from the URL and set `PROPOSAL_TEMPLATE_SLIDE_ID`
+
+### 4. Configuration
+
+```bash
+# Copy example environment file
 cp .env.example .env
-# Edit .env with your credentials (see Environment Variables below)
+```
 
-# 3. Start the bot
+Edit `.env` with your credentials:
+
+```bash
+# Slack Configuration
+SLACK_BOT_TOKEN="xoxb-..."
+SLACK_APP_TOKEN="xapp-..."
+SLACK_SIGNING_SECRET="..."
+
+# Google Configuration
+GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'  # Full JSON content
+GOOGLE_DRIVE_ROOT_FOLDER_ID="1abc..."  # Shared Drive folder ID
+
+# Anthropic API
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Template (optional — local PPTX is the default, Slides ID is a fallback)
+# PROPOSAL_TEMPLATE_PATH="template/Renessai basic template 10_2025.pptx"
+# PROPOSAL_TEMPLATE_SLIDE_ID="1xyz..."   # Google Slides template ID
+```
+
+### 5. Slack App Setup
+
+1. Create a new Slack app at https://api.slack.com/apps
+2. Enable **Socket Mode** under Settings → Socket Mode
+3. Add **Bot Token Scopes** under OAuth & Permissions:
+   - `channels:history`
+   - `channels:read`
+   - `chat:write`
+   - `commands`
+   - `files:read`
+   - `groups:history`
+   - `groups:read`
+   - `im:history`
+   - `im:read`
+   - `users:read`
+   - `users:read.email`
+4. Add **Slash Command**: `/pa-status`
+5. Enable **Event Subscriptions** and subscribe to:
+   - `message.channels`
+   - `message.groups`
+   - `message.im`
+6. Generate an App-Level Token with `connections:write` scope
+7. Install the app to your workspace
+
+### 6. Run the Bot
+
+```bash
 uv run python -m proposal_assistant.main
-# Expected: "Starting Proposal Assistant bot in Socket Mode..."
+```
+
+You should see:
+```
+⚡️ Bolt app is running!
+```
+
+## Usage
+
+### Basic Analysis
+
+1. **Create or join a Slack channel**
+2. **Invite the bot**: `/invite @ProposalAssistant`
+3. **Upload a transcript** (.md, .txt, or .docx) with the message `Analyse`
+
+### Example Transcript Format
+
+```markdown
+# Discovery Call - Acme Corp
+Date: 2024-01-15
+Attendees: John Smith (Acme), Jane Doe (Renessai)
+
+## Discussion
+
+John: Thanks for taking the time to meet with us. We're looking to modernize
+our data infrastructure.
+
+Jane: Can you tell me more about the challenges you're facing?
+
+John: Our main issues are:
+1. Slow query performance - reports take hours to generate
+2. Data silos - marketing and sales don't talk to each other
+3. Scaling concerns - we're growing 30% year over year
+
+Jane: What's your timeline for this project?
+
+John: We'd like to have something in place by Q3. Budget-wise, we're looking
+at around $500K for the initial implementation.
+
+## Next Steps
+- Schedule technical deep-dive
+- Prepare initial proposal
+```
+
+### With Web Content
+
+Include URLs for additional context:
+
+```
+Analyse https://acme-corp.com/about
+```
+(Attach the .md file to this message)
+
+### Check Bot Status
+
+```
+/pa-status
+```
+
+## Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `Analyse` | Analyze attached transcript file(s) (.md, .txt, .docx) |
+| `Propose` | Skip analysis — generate deck directly from an uploaded Deal Analysis (.md, .txt, .docx) |
+| `Yes` / `No` (buttons) | Approve or reject proposal deck generation after Deal Analysis |
+| `Regenerate` (button) | Re-generate the Deal Analysis (creates a new versioned doc) |
+| `/pa-status` | Check bot status, Claude API health, and metrics |
+
+## Folder Structure Created
+
+For each client, the bot creates:
+
+```
+📁 Shared Drive Root
+└── 📁 {client_name}/
+    ├── 📁 Meetings/          # Original transcripts
+    ├── 📁 Analyse here/      # Deal Analysis documents
+    ├── 📁 Proposals/         # Generated proposal decks
+    └── 📁 References/        # Reference materials
+```
+
+## Troubleshooting
+
+### Bot not responding
+- Check `/pa-status` to verify the bot is running
+- Ensure the bot is invited to the channel
+- Verify Claude API key is valid
+
+### Claude API errors
+- Verify your API key: `python -c "import httpx; print(httpx.get('https://api.anthropic.com/v1/models', headers={'x-api-key': 'YOUR_KEY', 'anthropic-version': '2023-06-01'}).status_code)"`
+- Check API status at [status.anthropic.com](https://status.anthropic.com)
+
+### Google Drive "File not found" errors
+- Ensure you're using a **Shared Drive** folder (not personal Drive)
+- Verify the service account has **Content Manager** access
+- Check that the folder/template IDs are correct
+
+### "Storage quota exceeded" error
+- Service accounts have 0 GB personal storage
+- You **must** use a Shared Drive for all files
+- Check the Shared Drive has available space
+
+### "Placeholder not found" warnings
+- The Slides template structure doesn't match expected placeholders
+- This is normal for PPTX-converted templates
+- Content will still be added to available placeholders
+
+### State data missing for approval
+- Ensure the bot wasn't restarted between analysis and approval
+- State is persisted in `data/threads/` directory
+
+## Docker Deployment
+
+```bash
+# Build the image
+docker build -t proposal-assistant .
+
+# Run with environment file
+docker run --env-file .env proposal-assistant
+```
+
+## Development
+
+```bash
+# Install with dev dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Run linter
+uv run ruff check src/
+
+# Type checking
+uv run pyright src/
+```
+
+### Utility Scripts
+
+```bash
+# Check service account Drive quota
+uv run python scripts/check_quota.py
+
+# Check folder permissions
+uv run python scripts/check_folder.py
+
+# Inspect Slides template structure
+uv run python scripts/inspect_template.py
+
+# Upload and convert PPTX template
+uv run python scripts/upload_template.py
 ```
 
 ## Environment Variables
 
-Create a `.env` file in the project root with these required variables:
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SLACK_BOT_TOKEN` | Slack bot OAuth token (xoxb-...) | Yes |
+| `SLACK_APP_TOKEN` | Slack app-level token (xapp-...) | Yes |
+| `SLACK_SIGNING_SECRET` | Slack signing secret for request verification | Yes |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Full JSON content of service account key | Yes |
+| `GOOGLE_DRIVE_ROOT_FOLDER_ID` | Shared Drive folder ID for proposals | Yes |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude | Yes |
 
-| Variable | Description |
-| --- | --- |
-| `SLACK_BOT_TOKEN` | Slack bot user OAuth token (`xoxb-...`) |
-| `SLACK_APP_TOKEN` | Slack app-level token for Socket Mode (`xapp-...`) |
-| `SLACK_SIGNING_SECRET` | Slack app signing secret |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Google service account credentials JSON string |
-| `GOOGLE_DRIVE_ROOT_FOLDER_ID` | Root folder ID in Google Drive for client documents |
-| `ANTHROPIC_API_KEY` | Anthropic API key (`sk-ant-...`) |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-5-20250929` | Model ID |
+| `ANTHROPIC_MAX_TOKENS` | `8192` | Max response tokens |
+| `ANTHROPIC_TEMPERATURE` | `0.3` | Sampling temperature |
+| `ANTHROPIC_MAX_RETRIES` | `3` | Retry count |
+| `PROPOSAL_TEMPLATE_SLIDE_ID` | `""` | Google Slides template ID |
+| `PROPOSAL_TEMPLATE_PATH` | `template/Renessai basic template 10_2025.pptx` | Local PPTX template |
+| `LOG_LEVEL` | `INFO` | Logging level |
+| `ENVIRONMENT` | `development` | Environment name |
 
-See [CLAUDE.md](CLAUDE.md) for optional LLM tuning parameters and app settings.
+## License
 
-## How It Works
-
-1. User uploads a `.md` transcript in Slack and types **"Analyse"**
-2. Bot creates a client folder in Google Drive under `/Clients/{ClientName}/`
-3. Bot sends the transcript to Claude and generates a Deal Analysis
-4. Bot creates a Google Doc with the analysis, shares it, and posts a link with approval buttons
-5. User clicks **"Yes"** to approve — bot generates Proposal Deck content via Claude
-6. Bot duplicates the Slides template, populates it with proposal content, and shares the deck
-7. Bot posts the deck link — workflow complete
-
-**Alternative paths:** "No" ends the workflow gracefully. "Regenerate" creates a new versioned Deal Analysis (v2, v3...) while keeping the original.
-
-## Docker
-
-Single container deployment — no GPU or sidecar services needed.
-
-```bash
-# Production
-docker compose up -d --build
-
-# Development (with hot-reload source mount)
-docker compose -f docker-compose.dev.yml up -d
-
-# View logs
-docker logs -f proposal-assistant
-```
-
-The container includes a built-in health check that verifies Claude API connectivity, Google Drive access, and state storage.
-
-## Testing
-
-```bash
-uv run pytest                              # All tests
-uv run pytest tests/unit/ -v               # Unit tests only
-uv run pytest tests/integration/ -v        # Integration tests only
-uv run pytest --cov=src/proposal_assistant \
-              --cov-report=html            # Coverage report
-
-# Lint and format
-uv run ruff check src/
-uv run black --check src/                  # Line length: 100
-uv run pyright src/
-```
-
-## Project Structure
-
-```
-src/proposal_assistant/
-  main.py          Entry point — initializes Slack Bolt app and registers handlers
-  config.py        Environment variable loading, Config dataclass
-  health.py        Health checks (Claude API, Google Drive, state storage)
-  slack/           Slack event handlers, slash commands, Block Kit message formatters
-  llm/             Claude API client, prompt templates, context builder
-  drive/           Google Drive API — folder creation, file permissions
-  docs/            Google Docs API — Deal Analysis document generation
-  slides/          Google Slides API — template duplication and proposal deck population
-  state/           State machine (models, transitions, JSON file persistence)
-  web/             URL content fetcher for supplementary research
-  utils/           Logging, parsing, validation, and alerting utilities
-```
-
-## Documentation
-
-- [CLAUDE.md](CLAUDE.md) — Architecture details, LLM integration, environment variables, product rules, and testing patterns
-- [docs/prd.md](docs/prd.md) — Product requirements and acceptance criteria
-- [docs/technical-design.md](docs/technical-design.md) — Architecture and implementation plan
+Proprietary - Renessai
