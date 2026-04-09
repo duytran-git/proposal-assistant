@@ -14,10 +14,10 @@ A Slack bot that analyzes meeting transcripts and generates proposal documents u
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+┌─────────────┐     ┌──────────────┐      ┌─────────────┐
 │   Slack     │────▶│  Proposal    │────▶│   Google    │
 │   User      │◀────│  Assistant   │◀────│   Drive     │
-└─────────────┘     └──────────────┘     └─────────────┘
+└─────────────┘     └──────────────┘      └─────────────┘
                            │
                            ▼
                     ┌──────────────┐
