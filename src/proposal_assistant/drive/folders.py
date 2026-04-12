@@ -17,9 +17,7 @@ CLIENT_SUBFOLDERS: dict[str, str] = {
 }
 
 
-def get_or_create_client_folder(
-    drive: "DriveClient", client_name: str
-) -> dict[str, str]:
+def get_or_create_client_folder(drive: "DriveClient", client_name: str) -> dict[str, str]:
     """Ensure full client folder structure exists.
 
     Creates the client folder and subfolders (Meetings, Analyse here,

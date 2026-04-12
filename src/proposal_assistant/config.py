@@ -20,24 +20,27 @@ class Config:
     google_service_account_json: str
     google_drive_root_folder_id: str
 
-    # LLM (Required)
-    ollama_base_url: str
-    ollama_model: str
+    # LLM — Anthropic (Required)
+    anthropic_api_key: str
 
-    # Templates (Required)
-    proposal_template_slide_id: str
+    # Templates
+    proposal_template_slide_id: str = ""
+    proposal_template_path: str = "template/Renessai basic template 10_2025.pptx"
 
-    # Optional with defaults
-    ollama_num_ctx: int = 32768
+    # LLM tuning (optional with defaults)
+    anthropic_model: str = "claude-sonnet-4-5-20250929"
+    anthropic_max_tokens: int = 4096
+    anthropic_temperature: float = 0.3
+    anthropic_max_retries: int = 3
+    anthropic_retry_backoff: str = "1,2,4"  # comma-separated seconds
+    anthropic_chunk_threshold: int = 32000  # tokens before chunk-summarizing
+    anthropic_chunk_size: int = 8000  # tokens per chunk
+
+    # App settings (optional with defaults)
     log_level: str = "INFO"
     environment: str = "development"
-
-    # Cloud LLM (Optional - for fallback when Ollama is offline)
-    cloud_provider: str | None = None  # "openai" or "anthropic"
-    openai_api_key: str | None = None
-    openai_model: str = "gpt-4o"
-    anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-4-20250514"
+    bot_enabled: bool = True
+    slack_alert_channel: str = ""
 
 
 def _get_required_env(key: str) -> str:
@@ -61,19 +64,24 @@ def get_config() -> Config:
         # Google
         google_service_account_json=_get_required_env("GOOGLE_SERVICE_ACCOUNT_JSON"),
         google_drive_root_folder_id=_get_required_env("GOOGLE_DRIVE_ROOT_FOLDER_ID"),
-        # LLM
-        ollama_base_url=_get_required_env("OLLAMA_BASE_URL"),
-        ollama_model=_get_required_env("OLLAMA_MODEL"),
+        # LLM — Anthropic
+        anthropic_api_key=_get_required_env("ANTHROPIC_API_KEY"),
         # Templates
-        proposal_template_slide_id=_get_required_env("PROPOSAL_TEMPLATE_SLIDE_ID"),
-        # Optional
-        ollama_num_ctx=int(os.getenv("OLLAMA_NUM_CTX", "32768")),
+        proposal_template_slide_id=os.getenv("PROPOSAL_TEMPLATE_SLIDE_ID", ""),
+        proposal_template_path=os.getenv(
+            "PROPOSAL_TEMPLATE_PATH", "template/Renessai basic template 10_2025.pptx"
+        ),
+        # LLM tuning
+        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"),
+        anthropic_max_tokens=int(os.getenv("ANTHROPIC_MAX_TOKENS", "4096")),
+        anthropic_temperature=float(os.getenv("ANTHROPIC_TEMPERATURE", "0.3")),
+        anthropic_max_retries=int(os.getenv("ANTHROPIC_MAX_RETRIES", "3")),
+        anthropic_retry_backoff=os.getenv("ANTHROPIC_RETRY_BACKOFF", "1,2,4"),
+        anthropic_chunk_threshold=int(os.getenv("ANTHROPIC_CHUNK_THRESHOLD", "32000")),
+        anthropic_chunk_size=int(os.getenv("ANTHROPIC_CHUNK_SIZE", "8000")),
+        # App settings
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         environment=os.getenv("ENVIRONMENT", "development"),
-        # Cloud LLM (Optional)
-        cloud_provider=os.getenv("CLOUD_PROVIDER"),  # "openai" or "anthropic"
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
-        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+        bot_enabled=os.getenv("BOT_ENABLED", "true").lower() in ("true", "1", "yes"),
+        slack_alert_channel=os.getenv("SLACK_ALERT_CHANNEL", ""),
     )

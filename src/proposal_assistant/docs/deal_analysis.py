@@ -132,9 +132,7 @@ def _build_segments(
     return segments
 
 
-def _add_missing_info_warning(
-    segments: list[_Segment], missing_info: list[str]
-) -> None:
+def _add_missing_info_warning(segments: list[_Segment], missing_info: list[str]) -> None:
     """Add missing-info warning block at the top of the document."""
     red = (0.8, 0.0, 0.0)
     segments.append(
@@ -147,8 +145,7 @@ def _add_missing_info_warning(
     )
     segments.append(
         _Segment(
-            "The following items could not be determined "
-            "from the provided materials:\n",
+            "The following items could not be determined " "from the provided materials:\n",
             color=red,
         )
     )
@@ -157,9 +154,7 @@ def _add_missing_info_warning(
     segments.append(_Segment("\n"))
 
 
-def _add_opportunity_snapshot(
-    segments: list[_Segment], snapshot: dict[str, Any]
-) -> None:
+def _add_opportunity_snapshot(segments: list[_Segment], snapshot: dict[str, Any]) -> None:
     """Add Section 1: Opportunity Snapshot."""
     segments.append(_Segment("1. Opportunity Snapshot\n", heading=1))
     for label, key in SNAPSHOT_FIELDS:
@@ -202,18 +197,14 @@ def _add_renessai_fit(segments: list[_Segment], data: dict[str, Any]) -> None:
     """Add Section 5: Renessai Fit & Strategy."""
     segments.append(_Segment("5. Renessai Fit & Strategy\n", heading=1))
     segments.append(_Segment("5.1 How Renessai Solves Top Pains\n", heading=2))
-    segments.append(
-        _Segment(f"{data.get('how_renessai_solves_top_pains', 'Unknown')}\n\n")
-    )
+    segments.append(_Segment(f"{data.get('how_renessai_solves_top_pains', 'Unknown')}\n\n"))
     segments.append(
         _Segment(
             "5.2 Differentiation vs Status Quo / Competitors\n",
             heading=2,
         )
     )
-    segments.append(
-        _Segment(f"{data.get('differentiation_vs_status_quo', 'Unknown')}\n\n")
-    )
+    segments.append(_Segment(f"{data.get('differentiation_vs_status_quo', 'Unknown')}\n\n"))
     segments.append(_Segment("5.3 Delivery & Phasing Idea\n", heading=2))
     segments.append(_Segment(f"{data.get('delivery_phasing_idea', 'Unknown')}\n\n"))
 

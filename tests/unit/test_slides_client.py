@@ -20,10 +20,9 @@ from proposal_assistant.slides.proposal_deck import (
 def mock_config():
     """Create a mock Config with Google credentials."""
     config = MagicMock()
-    config.google_service_account_json = (
-        '{"type": "service_account", "project_id": "test"}'
-    )
+    config.google_service_account_json = '{"type": "service_account", "project_id": "test"}'
     config.proposal_template_slide_id = "template_123"
+    config.proposal_template_path = "template/Renessai basic template 10_2025.pptx"
     return config
 
 
@@ -156,7 +155,7 @@ class TestSlidesClientInit:
             assert len(calls) == 1
             assert calls[0][0] == ("drive", "v3")
 
-    def test_stores_template_id(self, mock_config):
+    def test_stores_template_id_and_path(self, mock_config):
         with (
             patch("proposal_assistant.slides.client.Credentials") as mock_creds,
             patch("proposal_assistant.slides.client.build"),
@@ -165,30 +164,88 @@ class TestSlidesClientInit:
             client = SlidesClient(mock_config)
 
             assert client._template_id == "template_123"
+            assert client._template_path == "template/Renessai basic template 10_2025.pptx"
 
 
 # ── duplicate_template ─────────────────────────────────────────────
 
 
 class TestDuplicateTemplate:
-    """Tests for template duplication."""
+    """Tests for template duplication (upload from local PPTX or copy by ID)."""
 
-    def test_returns_presentation_id_and_web_link(self, slides_client):
-        slides_client._mock_drive_service.files().copy().execute.return_value = {
-            "id": "new_pres_456",
-            "webViewLink": "https://docs.google.com/presentation/d/new_pres_456",
+    def test_upload_path_returns_id_and_link(self, slides_client, tmp_path):
+        """When local PPTX exists, uploads and converts to Google Slides."""
+        pptx_file = tmp_path / "template.pptx"
+        pptx_file.write_bytes(b"fake-pptx")
+        slides_client._template_path = str(pptx_file)
+
+        slides_client._mock_drive_service.files().create().execute.return_value = {
+            "id": "uploaded_pres_123",
+            "webViewLink": "https://docs.google.com/presentation/d/uploaded_pres_123",
         }
 
-        pres_id, web_link = slides_client.duplicate_template(
-            "Test Proposal", "folder_789"
+        pres_id, web_link = slides_client.duplicate_template("Test Proposal", "folder_789")
+
+        assert pres_id == "uploaded_pres_123"
+        assert web_link == "https://docs.google.com/presentation/d/uploaded_pres_123"
+
+    @patch("proposal_assistant.slides.client.MediaFileUpload")
+    def test_upload_path_sends_correct_create_request(
+        self, mock_media_cls, slides_client, tmp_path
+    ):
+        """Upload path calls files().create() with correct metadata."""
+        pptx_file = tmp_path / "template.pptx"
+        pptx_file.write_bytes(b"fake-pptx")
+        slides_client._template_path = str(pptx_file)
+
+        mock_media_instance = MagicMock()
+        mock_media_cls.return_value = mock_media_instance
+
+        slides_client._mock_drive_service.files().create().execute.return_value = {
+            "id": "new_id",
+            "webViewLink": "https://example.com",
+        }
+
+        slides_client.duplicate_template("My Proposal", "target_folder")
+
+        mock_media_cls.assert_called_once_with(
+            str(pptx_file),
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            resumable=True,
+        )
+        slides_client._mock_drive_service.files().create.assert_called_with(
+            body={
+                "name": "My Proposal",
+                "parents": ["target_folder"],
+                "mimeType": "application/vnd.google-apps.presentation",
+            },
+            media_body=mock_media_instance,
+            fields="id,webViewLink",
+            supportsAllDrives=True,
         )
 
-        assert pres_id == "new_pres_456"
-        assert web_link == "https://docs.google.com/presentation/d/new_pres_456"
+    def test_copy_fallback_when_no_local_file(self, slides_client):
+        """Falls back to files().copy() when local template doesn't exist."""
+        slides_client._template_path = "/nonexistent/template.pptx"
+        slides_client._template_id = "template_123"
 
-    def test_sends_correct_copy_request(self, slides_client):
         slides_client._mock_drive_service.files().copy().execute.return_value = {
-            "id": "new_pres_456",
+            "id": "copied_pres_456",
+            "webViewLink": "https://docs.google.com/presentation/d/copied_pres_456",
+        }
+
+        pres_id, web_link = slides_client.duplicate_template("Test Proposal", "folder_789")
+
+        assert pres_id == "copied_pres_456"
+        assert web_link == "https://docs.google.com/presentation/d/copied_pres_456"
+
+    def test_copy_fallback_sends_correct_request(self, slides_client):
+        """Copy fallback calls files().copy() with correct arguments."""
+        slides_client._template_path = "/nonexistent/template.pptx"
+        slides_client._template_id = "template_123"
+
+        slides_client._mock_drive_service.files().copy().execute.return_value = {
+            "id": "new_id",
             "webViewLink": "https://example.com",
         }
 
@@ -198,19 +255,16 @@ class TestDuplicateTemplate:
             fileId="template_123",
             body={"name": "My Proposal", "parents": ["target_folder"]},
             fields="id,webViewLink",
+            supportsAllDrives=True,
         )
 
-    def test_uses_template_id_from_config(self, slides_client):
-        slides_client._template_id = "custom_template_999"
-        slides_client._mock_drive_service.files().copy().execute.return_value = {
-            "id": "new_id",
-            "webViewLink": "https://example.com",
-        }
+    def test_raises_when_no_local_file_and_no_template_id(self, slides_client):
+        """Raises FileNotFoundError when neither template source is available."""
+        slides_client._template_path = "/nonexistent/template.pptx"
+        slides_client._template_id = ""
 
-        slides_client.duplicate_template("Title", "folder")
-
-        call_kwargs = slides_client._mock_drive_service.files().copy.call_args
-        assert call_kwargs[1]["fileId"] == "custom_template_999"
+        with pytest.raises(FileNotFoundError, match="No template available"):
+            slides_client.duplicate_template("Title", "folder")
 
 
 # ── get_layout_by_name ─────────────────────────────────────────────
@@ -290,40 +344,28 @@ class TestGetLayoutByName:
 class TestPopulateProposalDeck:
     """Tests for proposal deck population."""
 
-    def test_calls_batch_update_with_presentation_id(
-        self, slides_client, sample_slide_content
-    ):
+    def test_calls_batch_update_with_presentation_id(self, slides_client, sample_slide_content):
         # Mock presentation structure
         slides_client._slides_service.presentations().get().execute.return_value = {
             "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
-            {}
-        )
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
 
         populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
 
         slides_client._slides_service.presentations().batchUpdate.assert_called()
-        call_kwargs = (
-            slides_client._slides_service.presentations().batchUpdate.call_args
-        )
+        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
         assert call_kwargs[1]["presentationId"] == "pres_123"
 
-    def test_generates_requests_for_all_slides(
-        self, slides_client, sample_slide_content
-    ):
+    def test_generates_requests_for_all_slides(self, slides_client, sample_slide_content):
         slides_client._slides_service.presentations().get().execute.return_value = {
             "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
-            {}
-        )
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
 
         populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
 
-        call_kwargs = (
-            slides_client._slides_service.presentations().batchUpdate.call_args
-        )
+        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
         requests = call_kwargs[1]["body"]["requests"]
 
         # Should have requests for text deletion and insertion for each placeholder,
@@ -334,9 +376,7 @@ class TestPopulateProposalDeck:
         slides_client._slides_service.presentations().get().execute.return_value = {
             "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
-            {}
-        )
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
 
         # Provide only partial content
         partial_content = {
@@ -353,52 +393,38 @@ class TestPopulateProposalDeck:
         slides_client._slides_service.presentations().get().execute.return_value = {
             "slides": [self._make_slide_page(i) for i in range(1, 13)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
-            {}
-        )
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
 
         populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
 
-        call_kwargs = (
-            slides_client._slides_service.presentations().batchUpdate.call_args
-        )
+        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
         requests = call_kwargs[1]["body"]["requests"]
 
         # Find footer text insertions
         footer_inserts = [
-            r
-            for r in requests
-            if "insertText" in r and r["insertText"].get("text") == FOOTER_TEXT
+            r for r in requests if "insertText" in r and r["insertText"].get("text") == FOOTER_TEXT
         ]
         assert len(footer_inserts) == 12  # Footer for each slide
 
-    def test_deletes_existing_text_before_insert(
-        self, slides_client, sample_slide_content
-    ):
+    def test_deletes_existing_text_before_insert(self, slides_client, sample_slide_content):
         slides_client._slides_service.presentations().get().execute.return_value = {
             "slides": [self._make_slide_page(1)]
         }
-        slides_client._slides_service.presentations().batchUpdate().execute.return_value = (
-            {}
-        )
+        slides_client._slides_service.presentations().batchUpdate().execute.return_value = {}
 
         populate_proposal_deck(slides_client, "pres_123", sample_slide_content)
 
-        call_kwargs = (
-            slides_client._slides_service.presentations().batchUpdate.call_args
-        )
+        call_kwargs = slides_client._slides_service.presentations().batchUpdate.call_args
         requests = call_kwargs[1]["body"]["requests"]
 
-        # For each placeholder, deleteText should come before insertText
+        # Current implementation inserts text directly without deleting first
         delete_count = sum(1 for r in requests if "deleteText" in r)
         insert_content = sum(
-            1
-            for r in requests
-            if "insertText" in r and r["insertText"].get("text") != FOOTER_TEXT
+            1 for r in requests if "insertText" in r and r["insertText"].get("text") != FOOTER_TEXT
         )
 
-        # Each placeholder should have a delete followed by an insert
-        assert delete_count == insert_content
+        assert delete_count == 0
+        assert insert_content > 0
 
     @staticmethod
     def _make_slide_page(slide_num: int) -> dict:

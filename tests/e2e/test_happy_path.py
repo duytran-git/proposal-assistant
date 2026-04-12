@@ -45,8 +45,8 @@ def mock_config():
     config.google_service_account_json = '{"type": "service_account"}'
     config.google_drive_root_folder_id = "root_folder_123"
     config.google_slides_template_id = "template_123"
-    config.ollama_base_url = "http://localhost:11434"
-    config.ollama_model = "llama3.2"
+    config.anthropic_api_key = "sk-ant-test-key"
+    config.anthropic_model = "claude-sonnet-4-5-20250929"
     return config
 
 
@@ -113,28 +113,21 @@ class TestHappyPath:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.urllib.request.Request"),
-            patch(
-                "proposal_assistant.slack.handlers.urllib.request.urlopen"
-            ) as urlopen,
+            patch("proposal_assistant.slack.handlers.urllib.request.urlopen") as urlopen,
             patch("proposal_assistant.slack.handlers.validate_transcript") as validate,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
             patch("proposal_assistant.slack.handlers.extract_client_name") as extract,
             patch("proposal_assistant.slack.handlers.DriveClient"),
+            patch("proposal_assistant.slack.handlers.get_or_create_client_folder") as get_folders,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch(
-                "proposal_assistant.slack.handlers.get_or_create_client_folder"
-            ) as get_folders,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+                "proposal_assistant.slack.handlers.generate_proposal_content"
+            ) as mock_generate_proposal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.SlidesClient") as SlidesClient,
-            patch(
-                "proposal_assistant.slack.handlers.populate_deal_analysis"
-            ) as populate_deal,
-            patch(
-                "proposal_assistant.slack.handlers.populate_proposal_deck"
-            ) as populate_deck,
-            patch(
-                "proposal_assistant.slack.handlers.share_with_channel_members"
-            ) as share,
+            patch("proposal_assistant.slack.handlers.populate_deal_analysis") as populate_deal,
+            patch("proposal_assistant.slack.handlers.populate_proposal_deck") as populate_deck,
+            patch("proposal_assistant.slack.handlers.share_with_channel_members") as share,
         ):
             # Configure get_config
             get_config.return_value = mock_config
@@ -172,9 +165,7 @@ class TestHappyPath:
                     proposals_folder_id=thread_state_data.get(
                         "proposals_folder_id", "folder_proposals_123"
                     ),
-                    deal_analysis_content=thread_state_data.get(
-                        "deal_analysis_content"
-                    ),
+                    deal_analysis_content=thread_state_data.get("deal_analysis_content"),
                     deal_analysis_doc_id=thread_state_data.get("deal_analysis_doc_id"),
                     deal_analysis_link=thread_state_data.get("deal_analysis_link"),
                     state=State.WAITING_FOR_APPROVAL,
@@ -196,17 +187,15 @@ class TestHappyPath:
             }
 
             # Mock LLM responses (both deal analysis and proposal deck)
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": deal_analysis_response["deal_analysis"],
                 "missing_info": deal_analysis_response["missing_info"],
                 "raw_response": json.dumps(deal_analysis_response),
             }
-            mock_llm.generate_proposal_deck_content.return_value = {
+            mock_generate_proposal.return_value = {
                 "content": proposal_deck_response["content"],
                 "raw_response": json.dumps(proposal_deck_response),
             }
-            LLMClient.return_value = mock_llm
 
             # Mock Docs creation
             mock_docs = MagicMock()
@@ -255,9 +244,7 @@ class TestHappyPath:
 
             # Verify approval buttons are present
             blocks = mock_say.call_args_list[1][1]["blocks"]
-            actions_block = next(
-                (b for b in blocks if b.get("type") == "actions"), None
-            )
+            actions_block = next((b for b in blocks if b.get("type") == "actions"), None)
             assert actions_block is not None, "Approval buttons not found"
 
             # ─────────────────────────────────────────────────────────────────
@@ -280,9 +267,7 @@ class TestHappyPath:
 
             # Verify Phase 2 messages (2 more = 4 total)
             assert mock_say.call_count == 4
-            assert (
-                mock_say.call_args_list[2][1]["text"] == "Generating proposal deck..."
-            )
+            assert mock_say.call_args_list[2][1]["text"] == "Generating proposal deck..."
             assert mock_say.call_args_list[3][1]["text"] == "Proposal deck created"
 
             # Verify deck link is in the final message
@@ -314,10 +299,8 @@ class TestHappyPath:
             # ─────────────────────────────────────────────────────────────────
             # VERIFY: LLM called correctly for both phases
             # ─────────────────────────────────────────────────────────────────
-            mock_llm.generate_deal_analysis.assert_called_once()
-            mock_llm.generate_proposal_deck_content.assert_called_once_with(
-                deal_analysis_response["deal_analysis"]
-            )
+            mock_generate_deal.assert_called_once()
+            mock_generate_proposal.assert_called_once_with(deal_analysis_response["deal_analysis"])
 
             # ─────────────────────────────────────────────────────────────────
             # VERIFY: Complete state transition chain

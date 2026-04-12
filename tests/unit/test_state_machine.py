@@ -50,7 +50,7 @@ class TestTransitionsDict:
 
     def test_transition_count(self):
         """Correct number of transitions defined."""
-        assert len(TRANSITIONS) == 13
+        assert len(TRANSITIONS) == 14
 
 
 class TestCanTransition:
@@ -73,6 +73,7 @@ class TestCanTransition:
             (State.WAITING_FOR_APPROVAL, Event.REGENERATE_REQUESTED),
             (State.GENERATING_DECK, Event.DECK_CREATED),
             (State.GENERATING_DECK, Event.FAILED),
+            (State.IDLE, Event.PROPOSE_REQUESTED),
             (State.ERROR, Event.ANALYSE_REQUESTED),
         ],
     )
@@ -110,6 +111,14 @@ class TestTransition:
         state = machine.transition("123", "C001", Event.ANALYSE_REQUESTED)
 
         assert state.state == State.GENERATING_DEAL_ANALYSIS
+        assert state.previous_state == State.IDLE
+
+    def test_idle_to_generating_deck_on_propose(self, machine):
+        """IDLE -> GENERATING_DECK on PROPOSE_REQUESTED."""
+        machine.get_state("123", "C001", "U001")
+        state = machine.transition("123", "C001", Event.PROPOSE_REQUESTED)
+
+        assert state.state == State.GENERATING_DECK
         assert state.previous_state == State.IDLE
 
     def test_idle_to_waiting_for_inputs(self, machine):
@@ -290,9 +299,7 @@ class TestApprovalGate:
 
         # Cannot skip straight to deck
         assert not machine.can_transition(State.IDLE, Event.APPROVED)
-        assert not machine.can_transition(
-            State.GENERATING_DEAL_ANALYSIS, Event.APPROVED
-        )
+        assert not machine.can_transition(State.GENERATING_DEAL_ANALYSIS, Event.APPROVED)
 
         # Must go through approval
         assert machine.can_transition(State.WAITING_FOR_APPROVAL, Event.APPROVED)

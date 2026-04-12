@@ -10,8 +10,35 @@ import pytest
 
 from proposal_assistant.docs.deal_analysis import create_versioned_document_title
 from proposal_assistant.slack.handlers import handle_regenerate
-from proposal_assistant.slack.messages import ERROR_MESSAGES
+from proposal_assistant.slack.messages import ERROR_MESSAGES, format_approval_buttons
 from proposal_assistant.state.models import Event, State, ThreadState
+
+
+class TestApprovalButtonsIncludeRegenerate:
+    """Tests that approval buttons include the Regenerate option."""
+
+    def test_approval_buttons_has_three_elements(self):
+        """Approval actions block contains exactly 3 buttons."""
+        result = format_approval_buttons()
+        assert len(result["elements"]) == 3
+
+    def test_regenerate_button_action_id(self):
+        """Third button has action_id 'regenerate_analysis'."""
+        result = format_approval_buttons()
+        regenerate_btn = result["elements"][2]
+        assert regenerate_btn["action_id"] == "regenerate_analysis"
+
+    def test_regenerate_button_has_no_style(self):
+        """Regenerate button has neutral styling (no style attribute)."""
+        result = format_approval_buttons()
+        regenerate_btn = result["elements"][2]
+        assert "style" not in regenerate_btn
+
+    def test_regenerate_button_text(self):
+        """Regenerate button displays 'Regenerate' text."""
+        result = format_approval_buttons()
+        regenerate_btn = result["elements"][2]
+        assert regenerate_btn["text"]["text"] == "Regenerate"
 
 
 class TestV1ExistsBeforeRegenerate:
@@ -31,9 +58,7 @@ class TestV1ExistsBeforeRegenerate:
             deal_analysis_link="https://docs.google.com/document/d/doc_v1_id",
             deal_analysis_content={"company": "Acme Corp"},
             deal_analysis_version=1,
-            input_transcript_content=[
-                "# Meeting transcript\n\nDiscussion about project."
-            ],
+            input_transcript_content=["# Meeting transcript\n\nDiscussion about project."],
             state=State.WAITING_FOR_APPROVAL,
         )
 
@@ -103,7 +128,7 @@ class TestRegenerateCreatesV2:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.share_with_channel_members"),
@@ -112,12 +137,10 @@ class TestRegenerateCreatesV2:
             get_config.return_value = mock_config
             StateMachine.return_value.get_state.return_value = thread_state_v1
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": {"company": "Acme Corp v2"},
                 "missing_info": [],
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = (
@@ -144,7 +167,7 @@ class TestRegenerateCreatesV2:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient") as DriveClient,
             patch("proposal_assistant.slack.handlers.share_with_channel_members"),
@@ -153,12 +176,10 @@ class TestRegenerateCreatesV2:
             get_config.return_value = mock_config
             StateMachine.return_value.get_state.return_value = thread_state_v1
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": {"company": "Acme Corp v2"},
                 "missing_info": [],
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = ("doc_v2_id", "link_v2")
@@ -173,9 +194,7 @@ class TestRegenerateCreatesV2:
         mock_drive.delete_file.assert_not_called()
         mock_docs._docs_service.documents().delete.assert_not_called()
 
-    def test_v2_title_includes_version_suffix(
-        self, mock_config, thread_state_v1, regenerate_body
-    ):
+    def test_v2_title_includes_version_suffix(self, mock_config, thread_state_v1, regenerate_body):
         """V2 document title includes 'v2' suffix."""
         mock_say = MagicMock()
         mock_client = MagicMock()
@@ -183,7 +202,7 @@ class TestRegenerateCreatesV2:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.share_with_channel_members"),
@@ -192,12 +211,10 @@ class TestRegenerateCreatesV2:
             get_config.return_value = mock_config
             StateMachine.return_value.get_state.return_value = thread_state_v1
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": {"company": "Acme Corp v2"},
                 "missing_info": [],
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = ("doc_v2_id", "link_v2")
@@ -210,9 +227,7 @@ class TestRegenerateCreatesV2:
         assert "v2" in doc_title
         assert doc_title == "acme - Deal Analysis v2"
 
-    def test_state_updated_to_version_2(
-        self, mock_config, thread_state_v1, regenerate_body
-    ):
+    def test_state_updated_to_version_2(self, mock_config, thread_state_v1, regenerate_body):
         """Thread state is updated to version 2 after regeneration."""
         mock_say = MagicMock()
         mock_client = MagicMock()
@@ -220,7 +235,7 @@ class TestRegenerateCreatesV2:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.share_with_channel_members"),
@@ -229,12 +244,10 @@ class TestRegenerateCreatesV2:
             get_config.return_value = mock_config
             StateMachine.return_value.get_state.return_value = thread_state_v1
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": {"company": "Acme Corp v2"},
                 "missing_info": [],
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = ("doc_v2_id", "link_v2")
@@ -345,7 +358,7 @@ class TestRegenerationPreservesOriginalInputs:
         with (
             patch("proposal_assistant.slack.handlers.get_config") as get_config,
             patch("proposal_assistant.slack.handlers.StateMachine") as StateMachine,
-            patch("proposal_assistant.slack.handlers.LLMClient") as LLMClient,
+            patch("proposal_assistant.slack.handlers.generate_deal_analysis") as mock_generate_deal,
             patch("proposal_assistant.slack.handlers.DocsClient") as DocsClient,
             patch("proposal_assistant.slack.handlers.DriveClient"),
             patch("proposal_assistant.slack.handlers.share_with_channel_members"),
@@ -356,12 +369,10 @@ class TestRegenerationPreservesOriginalInputs:
                 thread_state_with_multiple_transcripts
             )
 
-            mock_llm = MagicMock()
-            mock_llm.generate_deal_analysis.return_value = {
+            mock_generate_deal.return_value = {
                 "content": {"company": "Acme"},
                 "missing_info": [],
             }
-            LLMClient.return_value = mock_llm
 
             mock_docs = MagicMock()
             mock_docs.create_document.return_value = ("doc_v2_id", "link_v2")
@@ -370,8 +381,8 @@ class TestRegenerationPreservesOriginalInputs:
             handle_regenerate(regenerate_body, mock_say, mock_client)
 
         # LLM called with both original transcripts
-        mock_llm.generate_deal_analysis.assert_called_once()
-        call_kwargs = mock_llm.generate_deal_analysis.call_args[1]
+        mock_generate_deal.assert_called_once()
+        call_kwargs = mock_generate_deal.call_args[1]
         assert call_kwargs["transcript"] == [
             "# Meeting 1\n\nInitial discussion.",
             "# Meeting 2\n\nFollow-up points.",

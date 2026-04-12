@@ -1,4 +1,4 @@
-"""LLM client for Proposal Assistant using OpenAI-compatible API."""
+"""LLM client for Proposal Assistant using Anthropic SDK."""
 
 import json
 import logging
@@ -6,7 +6,8 @@ import re
 import time
 from typing import Any
 
-from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
+import anthropic
+import httpx
 
 from proposal_assistant.config import Config
 from proposal_assistant.llm.context_builder import (
@@ -22,15 +23,6 @@ from proposal_assistant.llm.prompts.proposal_deck import (
     SYSTEM_PROMPT as PROPOSAL_DECK_SYSTEM_PROMPT,
     format_user_prompt as format_proposal_deck_prompt,
 )
-
-# Optional imports for cloud providers
-try:
-    import anthropic  # type: ignore[import-untyped]
-
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    anthropic = None  # type: ignore[assignment]
-    ANTHROPIC_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +59,9 @@ Provide a comprehensive summary that captures all important information."""
 
 
 class LLMClient:
-    """LLM API client connecting to Ollama via OpenAI-compatible SDK.
+    """LLM API client using the Anthropic SDK.
 
-    Uses the openai SDK pointed at Ollama's /v1 endpoint.
-    Supports fallback to cloud providers (OpenAI or Anthropic) when local
-    Ollama is unavailable and user has given consent.
+    Uses the anthropic Python SDK to call Claude as the primary LLM backend.
     Implements retry with exponential backoff for transient failures.
 
     Attributes:
@@ -90,55 +80,45 @@ class LLMClient:
         """Initialize the LLM client.
 
         Args:
-            config: Application configuration with Ollama and cloud provider details.
+            config: Application configuration with Anthropic API details.
         """
-        # Local Ollama client
-        self._client = OpenAI(
-            base_url=config.ollama_base_url,
-            api_key="ollama",  # Ollama doesn't require a real key
-        )
-        self._model = config.ollama_model
-        self._num_ctx = config.ollama_num_ctx
-
-        # Cloud provider configuration
-        self._cloud_provider = config.cloud_provider
-        self._cloud_client: OpenAI | Any | None = None
-        self._cloud_model: str | None = None
-
-        # Initialize cloud client if configured
-        if config.cloud_provider == "openai" and config.openai_api_key:
-            self._cloud_client = OpenAI(api_key=config.openai_api_key)
-            self._cloud_model = config.openai_model
-            logger.info("Cloud fallback configured: OpenAI (%s)", config.openai_model)
-        elif config.cloud_provider == "anthropic" and config.anthropic_api_key:
-            if not ANTHROPIC_AVAILABLE or anthropic is None:
-                logger.warning("Anthropic configured but SDK not installed")
-            else:
-                self._cloud_client = anthropic.Anthropic(
-                    api_key=config.anthropic_api_key
-                )
-                self._cloud_model = config.anthropic_model
-                logger.info(
-                    "Cloud fallback configured: Anthropic (%s)", config.anthropic_model
-                )
+        self._client = anthropic.Anthropic(api_key=config.anthropic_api_key)
+        self._model = config.anthropic_model
 
     @property
     def cloud_available(self) -> bool:
-        """Check if cloud provider is configured and available."""
-        return self._cloud_client is not None
+        """Check if cloud provider is configured and available.
+
+        Always returns True since Claude IS the cloud backend.
+        Kept for handler compatibility.
+        """
+        return True
 
     def check_ollama_health(self) -> bool:
-        """Check if Ollama service is healthy by pinging /v1/models endpoint.
+        """Check if Claude API is reachable.
+
+        Method name kept for handler compatibility.
 
         Returns:
-            True if Ollama responds successfully, False otherwise.
+            True if Claude API responds successfully, False otherwise.
         """
         try:
-            self._client.models.list()
-            logger.debug("Ollama health check passed")
-            return True
+            resp = httpx.get(
+                "https://api.anthropic.com/v1/models",
+                headers={
+                    "x-api-key": self._client.api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+                timeout=10,
+            )
+            healthy = resp.status_code == 200
+            if healthy:
+                logger.debug("Claude API health check passed")
+            else:
+                logger.warning("Claude API health check returned status %d", resp.status_code)
+            return healthy
         except Exception as e:
-            logger.warning("Ollama health check failed: %s", e)
+            logger.warning("Claude API health check failed: %s", e)
             return False
 
     def generate(
@@ -153,7 +133,7 @@ class LLMClient:
             messages: Chat messages in OpenAI format
                 (list of {"role": ..., "content": ...}).
             temperature: Sampling temperature (default: 0.3).
-            use_cloud: If True, use cloud provider instead of local Ollama.
+            use_cloud: Ignored. Kept for handler compatibility.
 
         Returns:
             The LLM response text.
@@ -161,8 +141,6 @@ class LLMClient:
         Raises:
             LLMError: If all retries are exhausted or response is invalid.
         """
-        if use_cloud:
-            return self._call_cloud(messages, temperature=temperature)
         return self._call_with_retry(messages, temperature=temperature)
 
     def generate_deal_analysis(
@@ -184,7 +162,7 @@ class LLMClient:
             transcript: Meeting transcript text, or list of transcript texts.
             references: Optional reference document texts.
             web_content: Optional web research content texts.
-            use_cloud: If True, use cloud provider instead of local Ollama.
+            use_cloud: Ignored. Kept for handler compatibility.
 
         Returns:
             Dict with keys:
@@ -196,9 +174,7 @@ class LLMClient:
             LLMError: If LLM call fails or response is not valid JSON.
         """
         # Prepare transcript (chunk and summarize if >32K tokens)
-        prepared_transcript = self._prepare_transcript_for_analysis(
-            transcript, use_cloud=use_cloud
-        )
+        prepared_transcript = self._prepare_transcript_for_analysis(transcript)
 
         builder = ContextBuilder()
         result = builder.build_context(
@@ -212,7 +188,7 @@ class LLMClient:
             {"role": "user", "content": format_user_prompt(result.context)},
         ]
 
-        raw = self.generate(messages, use_cloud=use_cloud)
+        raw = self.generate(messages)
         parsed = self._extract_json(raw)
 
         content = parsed.get("deal_analysis", {})
@@ -249,7 +225,7 @@ class LLMClient:
 
         Args:
             deal_analysis: Parsed deal_analysis dict from generate_deal_analysis().
-            use_cloud: If True, use cloud provider instead of local Ollama.
+            use_cloud: Ignored. Kept for handler compatibility.
 
         Returns:
             Dict with keys:
@@ -272,7 +248,7 @@ class LLMClient:
             },
         ]
 
-        raw = self.generate(messages, use_cloud=use_cloud)
+        raw = self.generate(messages)
         parsed = self._extract_json(raw)
 
         # Validate expected slide keys are present
@@ -329,7 +305,7 @@ class LLMClient:
 
         Args:
             chunk: Text chunk to summarize.
-            use_cloud: If True, use cloud provider instead of local Ollama.
+            use_cloud: Ignored. Kept for handler compatibility.
 
         Returns:
             Summary of the chunk as a string.
@@ -348,7 +324,7 @@ class LLMClient:
             },
         ]
 
-        summary = self.generate(messages, temperature=0.2, use_cloud=use_cloud)
+        summary = self.generate(messages, temperature=0.2)
         logger.debug(
             "Chunk summarized: %d tokens -> %d tokens",
             count_tokens(chunk),
@@ -370,7 +346,7 @@ class LLMClient:
 
         Args:
             transcript: Raw transcript text or list of transcript texts.
-            use_cloud: If True, use cloud provider for summarization.
+            use_cloud: Ignored. Kept for compatibility.
 
         Returns:
             Transcript text ready for analysis (original or summarized).
@@ -412,7 +388,7 @@ class LLMClient:
                 len(chunks),
                 count_tokens(chunk),
             )
-            summary = self.summarize_chunk(chunk, use_cloud=use_cloud)
+            summary = self.summarize_chunk(chunk)
             if summary:
                 summaries.append(f"## Summary of Part {i}\n\n{summary}")
 
@@ -479,10 +455,10 @@ class LLMClient:
         messages: list[dict[str, str]],
         temperature: float = 0.3,
     ) -> str:
-        """Call LLM with exponential backoff retry.
+        """Call Anthropic API with exponential backoff retry.
 
-        Retries on transient errors (connection, timeout, server errors).
-        Does not retry on invalid responses (empty content).
+        Converts OpenAI-style messages to Anthropic format (extracting
+        system prompt separately). Retries on transient errors.
 
         Args:
             messages: Chat messages in OpenAI format.
@@ -494,18 +470,41 @@ class LLMClient:
         Raises:
             LLMError: If all retries fail or response is invalid.
         """
+        # Convert OpenAI message format to Anthropic format
+        system_content = ""
+        anthropic_messages: list[dict[str, str]] = []
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_content = msg["content"]
+            else:
+                anthropic_messages.append(
+                    {
+                        "role": msg["role"],
+                        "content": msg["content"],
+                    }
+                )
+
         last_error: Exception | None = None
 
         for attempt in range(self.MAX_RETRIES):
             try:
-                response = self._client.chat.completions.create(
+                response = self._client.messages.create(
                     model=self._model,
-                    messages=messages,  # type: ignore[arg-type]
+                    max_tokens=8192,
+                    system=system_content,
+                    messages=anthropic_messages,
                     temperature=temperature,
-                    extra_body={"options": {"num_ctx": self._num_ctx}},
                 )
 
-                content = response.choices[0].message.content
+                # Extract text from response content blocks
+                content_parts = []
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        content_parts.append(block.text)
+
+                content = "".join(content_parts)
+
                 if not content or not content.strip():
                     raise LLMError(
                         "LLM returned empty response",
@@ -518,7 +517,7 @@ class LLMClient:
             except LLMError:
                 raise  # Don't retry invalid responses
 
-            except APIConnectionError as exc:
+            except anthropic.APIConnectionError as exc:
                 last_error = exc
                 logger.error(
                     "LLM connection failed (attempt %d/%d): %s",
@@ -532,7 +531,7 @@ class LLMClient:
                         error_type="LLM_OFFLINE",
                     ) from exc
 
-            except (APIStatusError, APITimeoutError) as exc:
+            except (anthropic.APIStatusError, anthropic.APITimeoutError) as exc:
                 last_error = exc
                 logger.warning(
                     "LLM request failed (attempt %d/%d): %s",
@@ -567,157 +566,14 @@ class LLMClient:
 
         Args:
             attempt: Which attempt number succeeded.
-            usage: Usage object from the OpenAI response.
+            usage: Usage object from the Anthropic response.
         """
         if usage:
             logger.info(
                 "LLM response (attempt %d, prompt=%d, completion=%d tokens)",
                 attempt,
-                usage.prompt_tokens,
-                usage.completion_tokens,
+                usage.input_tokens,
+                usage.output_tokens,
             )
         else:
             logger.info("LLM response (attempt %d, usage not reported)", attempt)
-
-    def _call_cloud(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float = 0.3,
-    ) -> str:
-        """Call cloud LLM provider with retry logic.
-
-        Supports OpenAI and Anthropic APIs.
-
-        Args:
-            messages: Chat messages in OpenAI format.
-            temperature: Sampling temperature.
-
-        Returns:
-            The LLM response text.
-
-        Raises:
-            LLMError: If cloud provider is not configured or call fails.
-        """
-        if not self._cloud_client or not self._cloud_model:
-            raise LLMError(
-                "Cloud provider not configured",
-                error_type="LLM_ERROR",
-            )
-
-        last_error: Exception | None = None
-
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                if self._cloud_provider == "anthropic":
-                    content = self._call_anthropic(messages, temperature)
-                else:
-                    # OpenAI or OpenAI-compatible
-                    content = self._call_openai_cloud(messages, temperature)
-
-                if not content or not content.strip():
-                    raise LLMError(
-                        "Cloud LLM returned empty response",
-                        error_type="LLM_INVALID",
-                    )
-
-                logger.info(
-                    "Cloud LLM response (attempt %d, provider=%s)",
-                    attempt + 1,
-                    self._cloud_provider,
-                )
-                return content
-
-            except LLMError:
-                raise  # Don't retry invalid responses
-
-            except Exception as exc:
-                last_error = exc
-                logger.warning(
-                    "Cloud LLM request failed (attempt %d/%d): %s",
-                    attempt + 1,
-                    self.MAX_RETRIES,
-                    exc,
-                )
-
-            # Sleep before next attempt
-            if attempt < self.MAX_RETRIES - 1:
-                sleep_time = self.BACKOFF_SECONDS[attempt]
-                logger.info("Retrying cloud LLM in %ds...", sleep_time)
-                time.sleep(sleep_time)
-
-        raise LLMError(
-            f"Cloud LLM request failed after {self.MAX_RETRIES} attempts: {last_error}",
-            error_type="LLM_ERROR",
-        ) from last_error
-
-    def _call_openai_cloud(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float,
-    ) -> str:
-        """Call OpenAI cloud API.
-
-        Args:
-            messages: Chat messages in OpenAI format.
-            temperature: Sampling temperature.
-
-        Returns:
-            The response content text.
-        """
-        assert self._cloud_client is not None, "Cloud client not initialized"
-        assert self._cloud_model is not None, "Cloud model not configured"
-        response = self._cloud_client.chat.completions.create(
-            model=self._cloud_model,
-            messages=messages,  # type: ignore[arg-type]
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or ""
-
-    def _call_anthropic(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float,
-    ) -> str:
-        """Call Anthropic Claude API.
-
-        Converts OpenAI message format to Anthropic format.
-
-        Args:
-            messages: Chat messages in OpenAI format.
-            temperature: Sampling temperature.
-
-        Returns:
-            The response content text.
-        """
-        # Extract system message and convert remaining to Anthropic format
-        system_content = ""
-        anthropic_messages = []
-
-        for msg in messages:
-            if msg["role"] == "system":
-                system_content = msg["content"]
-            else:
-                anthropic_messages.append(
-                    {
-                        "role": msg["role"],
-                        "content": msg["content"],
-                    }
-                )
-
-        assert self._cloud_client is not None, "Cloud client not initialized"
-        assert self._cloud_model is not None, "Cloud model not configured"
-        response = self._cloud_client.messages.create(  # type: ignore[union-attr]
-            model=self._cloud_model,
-            max_tokens=8192,
-            system=system_content,
-            messages=anthropic_messages,
-            temperature=temperature,
-        )
-
-        # Extract text from response content blocks
-        content_parts = []
-        for block in response.content:
-            if hasattr(block, "text"):
-                content_parts.append(block.text)
-
-        return "".join(content_parts)

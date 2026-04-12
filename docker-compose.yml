@@ -1,0 +1,25 @@
+version: "3.9"
+services:
+  proposal-assistant:
+    build: .
+    container_name: proposal-assistant
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - ENVIRONMENT=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # No ports — Socket Mode is outbound only
+    # No Ollama sidecar — Claude Agent SDK uses cloud API
+
+networks:
+  internal:
+    driver: bridge

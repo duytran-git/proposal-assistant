@@ -40,10 +40,10 @@
                 │                    │                    │
                 ▼                    ▼                    ▼
 ┌───────────────────────┐ ┌───────────────────┐ ┌────────────────────────────────┐
-│     Slack API         │ │   Ollama (Local)  │ │      Google Cloud APIs         │
-│ • Events (Socket Mode)│ │ • qwen2.5:14b     │ │ • Drive API v3                 │
-│ • Web API             │ │ • OpenAI-compat   │ │ • Docs API v1                  │
-│ • Interactive         │ │   endpoint        │ │ • Slides API v1                │
+│     Slack API         │ │  Anthropic API    │ │      Google Cloud APIs         │
+│ • Events (Socket Mode)│ │ • Claude Sonnet   │ │ • Drive API v3                 │
+│ • Web API             │ │   4.5             │ │ • Docs API v1                  │
+│ • Interactive         │ │ • REST API        │ │ • Slides API v1                │
 └───────────────────────┘ └───────────────────┘ └────────────────────────────────┘
 ```
 
@@ -55,8 +55,8 @@
 | **Package Manager** | uv | Fast, modern Python packaging with lockfile support |
 | **Slack SDK** | slack-bolt &gt;=1.18.0 | Official Slack framework, handles Socket Mode natively |
 | **Google APIs** | google-api-python-client &gt;=2.100.0 | Official Google SDK, service account support |
-| **LLM Client** | openai &gt;=1.0.0 | OpenAI-compatible SDK works with Ollama's `/v1` endpoint |
-| **LLM Backend** | Ollama + qwen2.5:14b | Local inference, privacy-preserving, no API costs |
+| **LLM Client** | anthropic &gt;=0.18.0 | Anthropic Python SDK for Claude API |
+| **LLM Backend** | Claude Sonnet 4.5 (`claude-sonnet-4-5-20250514`) | Cloud inference via Anthropic API |
 | **Testing** | pytest, pytest-cov, pytest-asyncio | Industry standard, good coverage tooling |
 | **Linting/Format** | ruff + black | Fast linting, consistent formatting |
 | **Type Checking** | pyright | Strict type checking for reliability |
@@ -94,7 +94,7 @@ src/proposal_assistant/
 │
 ├── llm/
 │   ├── __init__.py
-│   ├── client.py              # LLM API client (Ollama/OpenAI-compat)
+│   ├── client.py              # LLM API client (Anthropic SDK)
 │   ├── context_builder.py     # Assembles context from inputs
 │   └── prompts/
 │       ├── __init__.py
@@ -411,7 +411,7 @@ User          Slack           Handlers        StateMachine      LLM            D
 | **P0** | **F4: Input Validation** | Validate .md files, detect empty/invalid, language check | F3 |
 | **P0** | **F5: Drive Folder Operations** | Find/create client folders, folder hierarchy | F1 |
 | **P0** | **F6: LLM Context Builder** | Assemble transcript + references, token management | F4 |
-| **P0** | **F7: LLM Client** | Connect to Ollama, retry logic, error handling | F1, F6 |
+| **P0** | **F7: LLM Client** | Connect to Anthropic API, retry logic, error handling | F1, F6 |
 | **P0** | **F8: Deal Analysis Generation** | Generate structured content via LLM | F6, F7 |
 | **P0** | **F9: Google Docs Integration** | Create doc, populate template, add footer | F5 |
 | **P0** | **F10: Missing Info Detection** | Extract missing fields, format for Slack | F8 |
@@ -425,8 +425,8 @@ User          Slack           Handlers        StateMachine      LLM            D
 | **P1** | **F18: Regeneration (Versioning)** | Create v2, v3 Deal Analysis versions | F8, F9 |
 | **P1** | **F19: Web URL Fetching** | Fetch external URLs for context | F6 |
 | **P1** | **F20: DM Support** | Full functionality in direct messages | F3, F15 |
-| **P2** | **F21: Cloud LLM Fallback** | Consent-based OpenAI/Anthropic fallback | F7 |
-| **P2** | **F22: Auto-chunking Long Transcripts** | Split &gt;32K tokens, summarize chunks | F6, F7 |
+| **P2** | **F21: ~~Cloud LLM Fallback~~** | ~~Consent-based fallback~~ — N/A (already cloud-first) | F7 |
+| **P2** | **F22: Auto-chunking Long Transcripts** | Pre-chunk very large inputs if needed (200K context window) | F6, F7 |
 | **P3** | **F23: Analytics Dashboard** | Usage tracking, quality metrics | All |
 
 ### 3.2 Feature Dependency Graph
@@ -485,10 +485,8 @@ class Config:
     google_service_account_json: str
     google_drive_root_folder_id: str
     
-    # LLM
-    ollama_base_url: str = "http://localhost:11434/v1"
-    ollama_model: str = "qwen2.5:14b"
-    ollama_num_ctx: int = 32768
+    # LLM — Anthropic Claude API
+    anthropic_api_key: str = ""
     
     # Templates
     proposal_template_slide_id: str
@@ -945,12 +943,12 @@ SLIDE_LAYOUTS = {
 
 ### Phase 6: Robustness & Polish (Week 6)
 
-#### 4.6.1 Implement F21: Cloud LLM Fallback
+#### 4.6.1 ~~Implement F21: Cloud LLM Fallback~~ — N/A (already cloud-first)
 
-**Complexity:** Medium\
-**Files:** Extend LLM client, add consent flow
+**Complexity:** N/A — no longer applicable\
+**Files:** None
 
-#### 4.6.2 Write tests for F21
+#### 4.6.2 ~~Write tests for F21~~ — N/A
 
 ---
 
@@ -981,7 +979,7 @@ SLIDE_LAYOUTS = {
 **Key Principles:**
 
 - Test each module in isolation
-- Mock all external dependencies (Slack API, Google APIs, Ollama)
+- Mock all external dependencies (Slack API, Google APIs, Anthropic SDK)
 - Use fixtures for consistent test data
 - Test both happy path and error cases
 
@@ -1178,7 +1176,7 @@ uv run pytest tests/e2e/ -v --env=test
 
 | Task ID | Task | Estimate | Dependencies |
 | --- | --- | --- | --- |
-| T6.1 | Implement LLMClient with Ollama connection | 4h | T1.3 |
+| T6.1 | Implement LLMClient with Anthropic SDK connection | 4h | T1.3 |
 | T6.2 | Implement retry with exponential backoff | 3h | T6.1 |
 | T6.3 | Implement context builder with token mgmt | 5h | T6.1 |
 | T6.4 | Create system sales advisor prompt | 3h | T6.1 |
@@ -1241,7 +1239,7 @@ uv run pytest tests/e2e/ -v --env=test
 
 | Task ID | Task | Estimate | Dependencies |
 | --- | --- | --- | --- |
-| T11.1 | Implement cloud LLM fallback with consent | 5h | T6.1 |
+| T11.1 | ~~Implement cloud LLM fallback with consent~~ — N/A (already cloud-first) | 0h | T6.1 |
 | T11.2 | Implement auto-chunking for long transcripts | 5h | T6.3 |
 | T11.3 | Write tests for robustness features | 4h | T11.1-T11.2 |
 
@@ -1283,9 +1281,8 @@ uv run pytest tests/e2e/ -v --env=test
 | DRIVE_QUOTA | API quota exceeded | "Drive temporarily unavailable" | Auto-retry |
 | DOCS_ERROR | Doc creation failed | "Failed to create Deal Analysis" | Auto-retry |
 | SLIDES_ERROR | Deck creation failed | "Failed to create proposal deck" | Auto-retry |
-| LLM_ERROR | Ollama error | "AI service temporarily unavailable" | Auto-retry (3x) |
+| LLM_ERROR | Claude API error | "AI service temporarily unavailable" | Auto-retry (3x) |
 | LLM_INVALID | Invalid LLM response | "Unable to generate analysis" | User retries |
-| LLM_OFFLINE | Ollama down | "Local AI unavailable. Use cloud?" | User consent |
 | APPROVAL_UNCLEAR | Unknown response | "Please reply 'Yes' or 'No'" | Wait for clear response |
 | STATE_MISSING | Thread state lost | "Lost track. Please start over" | User restarts |
 
@@ -1304,14 +1301,12 @@ GOOGLE_SERVICE_ACCOUNT_JSON={"type": "service_account", ...}
 GOOGLE_DRIVE_ROOT_FOLDER_ID=1ABC...
 
 # Required - LLM
-OLLAMA_BASE_URL=http://localhost:11434/v1
-OLLAMA_MODEL=qwen2.5:14b
+ANTHROPIC_API_KEY=sk-ant-...
 
 # Required - Templates
 PROPOSAL_TEMPLATE_SLIDE_ID=1XYZ...
 
 # Optional
-OLLAMA_NUM_CTX=32768
 LOG_LEVEL=INFO
 ENVIRONMENT=development
 ```

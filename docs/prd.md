@@ -34,7 +34,7 @@ Proposal Assistant is a Slack bot that transforms client discovery inputs into s
 
 The system prioritizes grounded content over speculation—preferring client language from transcripts and flagging missing information rather than inventing details. All outputs are drafts designed for human review and editing. The approval gate between Deal Analysis and Proposal Deck creation ensures quality control and allows users to refine the analysis before proceeding.
 
-The bot integrates with Slack for user interaction, Google Drive for file storage and organization, Google Docs for Deal Analysis creation, Google Slides for Proposal Deck generation, and Ollama (with Qwen2.5:14b) for LLM-powered content generation.
+The bot integrates with Slack for user interaction, Google Drive for file storage and organization, Google Docs for Deal Analysis creation, Google Slides for Proposal Deck generation, and the Anthropic Claude API (Claude Sonnet 4.5) for LLM-powered content generation.
 
 ---
 
@@ -151,16 +151,9 @@ The bot integrates with Slack for user interaction, Google Drive for file storag
 4. Missing information is aggregated across all transcripts
 5. Output is a single unified Deal Analysis document
 
-### US-010: Cloud LLM Fallback
+### US-010: ~~Cloud LLM Fallback~~ — N/A (Already Cloud-First)
 
-**As a** user, **I want** the bot to offer a cloud LLM option when the local server is unavailable **so that** I can still complete my work.
-
-**Acceptance Criteria:**
-1. Bot detects when local Ollama is unavailable
-2. Bot asks user for consent before using cloud API
-3. User can decline and wait for local service
-4. If consented, bot proceeds with cloud LLM (OpenAI/Anthropic)
-5. No data is sent to cloud without explicit user approval
+This user story is no longer applicable. The system uses the Anthropic Claude API as its primary (and only) LLM backend. There is no local model to fall back from.
 
 ---
 
@@ -294,15 +287,15 @@ Google Drive/
 
 | ID | Requirement | Description |
 |----|-------------|-------------|
-| FR-LLM-001 | Model configuration | Use Ollama with qwen2.5:14b model |
-| FR-LLM-002 | API compatibility | Connect via OpenAI-compatible API |
+| FR-LLM-001 | Model configuration | Use Anthropic Claude Sonnet 4.5 (`claude-sonnet-4-5-20250514`) |
+| FR-LLM-002 | API compatibility | Connect via Anthropic Python SDK (`anthropic` package) |
 | FR-LLM-003 | Deal Analysis generation | Generate structured Deal Analysis from inputs |
 | FR-LLM-004 | Deck content generation | Generate Proposal Deck content from Deal Analysis |
 | FR-LLM-005 | Missing info detection | Identify and return missing information items |
 | FR-LLM-006 | Retry with backoff | Implement retry with exponential backoff (1s, 2s, 4s) |
 | FR-LLM-007 | Context assembly | Assemble context from transcript, references, and web content |
-| FR-LLM-008 | Cloud fallback | If Ollama unavailable, offer cloud LLM (OpenAI/Anthropic) with user consent |
-| FR-LLM-009 | Auto-chunking | Split transcripts >32K tokens, summarize chunks, combine results |
+| FR-LLM-008 | ~~Cloud fallback~~ | ~~N/A — already cloud-first (Anthropic API)~~ |
+| FR-LLM-009 | Auto-chunking | Pre-chunk very large inputs if needed (200K context window makes this rarely necessary) |
 | FR-LLM-010 | Updated doc parsing | Re-run LLM on user-uploaded updated Deal Analysis to extract content |
 
 **Token Management:**
@@ -313,7 +306,7 @@ Google Drive/
 | References | up to 6K–10K tokens |
 | Web content | up to 4K–6K tokens |
 | Reserve for output | 4K–8K tokens |
-| Target max context | 32K tokens (num_ctx=32768) |
+| Max context window | 200K tokens (Claude Sonnet 4.5) |
 
 ### 4.6 State Module
 
@@ -386,7 +379,7 @@ Google Drive/
 | NFR-PERF-001 | Slack acknowledgment | < 3 seconds | Bot should react/reply quickly |
 | NFR-PERF-002 | Deal Analysis generation | < 60 seconds | End-to-end from inputs to doc created |
 | NFR-PERF-003 | Proposal Deck generation | < 120 seconds | Includes template duplication and population |
-| NFR-PERF-004 | LLM response time | < 45 seconds | For qwen2.5:14b with 32K context |
+| NFR-PERF-004 | LLM response time | < 45 seconds | For Claude Sonnet 4.5 via Anthropic API |
 | NFR-PERF-005 | Concurrent users | 5 simultaneous | Based on team size; scale as needed |
 
 ### 5.2 Security
@@ -701,15 +694,15 @@ data/
 | Drive API quota exceeded | DRIVE_QUOTA | "Google Drive is temporarily unavailable. Please try again in a few minutes." | Set ERROR state, retry with backoff | Automatic retry (3x) |
 | Google Docs creation fails | DOCS_ERROR | "Failed to create the Deal Analysis document. Please try again." | Set ERROR state, log details | Automatic retry (3x) |
 | Google Slides creation fails | SLIDES_ERROR | "Failed to create the proposal deck. Please try again." | Set ERROR state, log details | Automatic retry (3x) |
-| LLM API error | LLM_ERROR | "AI service temporarily unavailable. Please try again in a moment." | Set ERROR state, retry with backoff | Automatic retry (3x, 1s/2s/4s) |
+| Claude API error | LLM_ERROR | "AI service temporarily unavailable. Please try again in a moment." | Set ERROR state, retry with backoff | Automatic retry (3x, 1s/2s/4s) |
 | LLM response invalid/empty | LLM_INVALID | "Unable to generate analysis. Please try again or contact support." | Set ERROR state, log response | User retries or escalates |
 | Unknown approval response | APPROVAL_UNCLEAR | "Please reply 'Yes' to create the deck, or 'No' to stop." | Stay in WAITING_FOR_APPROVAL | Wait for clear response |
 | State not found for thread | STATE_MISSING | "I've lost track of this conversation. Please start over with 'Analyse'." | Reset to IDLE | User restarts flow |
 | Non-English transcript | LANGUAGE_UNSUPPORTED | "This transcript appears to be in [detected language]. Currently, only English transcripts are supported." | Stay in IDLE | User provides English transcript |
 | Web URL fetch failed | WEB_FETCH_FAILED | "Could not fetch content from: [URL list]. Proceeding with available content." | Continue processing | Informational; no action needed |
-| Local LLM unavailable | LLM_OFFLINE | "Local AI service is unavailable. Would you like to use cloud AI? (Your data will be sent securely to OpenAI/Anthropic)" | Show consent buttons | User approves or waits |
+| ~~Local LLM unavailable~~ | ~~LLM_OFFLINE~~ | N/A — removed (system is cloud-first via Anthropic API) | — | — |
 | Template version changed | TEMPLATE_CHANGED | "The proposal template has been updated since your Deal Analysis. Continue with new template?" | Show confirmation buttons | User confirms or cancels |
-| Transcript too long | TRANSCRIPT_OVERFLOW | "Transcript exceeds token limit. Splitting and summarizing automatically..." | Auto-chunk and continue | Informational; auto-handled |
+| Transcript too long | TRANSCRIPT_OVERFLOW | "Transcript exceeds token limit. Splitting and summarizing automatically..." | Auto-chunk and continue (rarely needed with 200K context) | Informational; auto-handled |
 
 **Retry Strategy:**
 - LLM errors: 3 retries with exponential backoff (1s, 2s, 4s)
@@ -759,7 +752,7 @@ data/
 | Google Drive API | Store/retrieve files | Cannot access inputs or save outputs |
 | Google Docs API | Create Deal Analysis | Cannot generate Deal Analysis |
 | Google Slides API | Create Proposal Deck | Cannot generate Proposal Deck |
-| Ollama (local) | LLM inference | Cannot generate content |
+| Anthropic API (cloud) | LLM inference | Cannot generate content |
 
 ### 10.2 Python Dependencies
 
@@ -771,7 +764,7 @@ dependencies = [
     "slack-bolt>=1.18.0",
     "google-api-python-client>=2.100.0",
     "google-auth>=2.23.0",
-    "openai>=1.0.0",
+    "anthropic>=0.18.0",
     "python-dotenv>=1.0.0",
 ]
 
@@ -793,10 +786,9 @@ dev = [
 | Component | Requirement |
 |-----------|-------------|
 | Python | 3.12+ |
-| Ollama | Latest stable, with qwen2.5:14b model pulled |
-| RAM | 16GB minimum (32GB recommended for 14B model) |
-| GPU | Optional but recommended (NVIDIA with CUDA for faster inference) |
-| Network | Outbound HTTPS to Slack and Google APIs |
+| Anthropic API key | From [console.anthropic.com](https://console.anthropic.com) |
+| RAM | 4-8GB (no local model required) |
+| Network | Outbound HTTPS to Slack, Google APIs, and Anthropic API |
 
 ---
 
@@ -1058,10 +1050,10 @@ This file contains:
 | Concurrent request handling | Sequential processing | One request at a time with queue |
 | Feedback mechanism | Slack reactions + survey | Thumbs up/down after generation |
 | Template versioning | Notify and re-confirm | If template changed, ask user before proceeding |
-| LLM fallback strategy | Cloud with user consent | Ask permission before using cloud API |
+| ~~LLM fallback strategy~~ | ~~N/A — already cloud-first~~ | System uses Anthropic Claude API directly |
 | Approval UX | Button-based UI | Slack interactive buttons instead of text |
 | Document sharing | Channel members | All channel members get Editor access |
-| Long transcript handling | Auto-chunk and summarize | Split >32K tokens, summarize, combine |
+| Long transcript handling | Auto-chunk if needed | 200K context window makes chunking rarely necessary |
 | Regeneration support | Versioned (v2, v3) | Create new docs, keep previous versions |
 | Approval timeout | No timeout | Wait forever; threads never auto-close |
 
@@ -1069,7 +1061,7 @@ This file contains:
 
 | Item | Context | Default Assumption |
 |------|---------|-------------------|
-| Default num_ctx for Ollama | Token management | 32768 for dev; TBD for prod based on hardware |
+| ~~Default num_ctx for Ollama~~ | ~~Token management~~ | N/A — Claude Sonnet 4.5 has 200K context window |
 | State storage backend | JSON vs SQLite vs Redis | JSON files for MVP |
 | Support SLA | Response time for user issues | Best-effort during beta |
 | Audit log retention | How long to keep logs | 90 days |

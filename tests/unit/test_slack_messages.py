@@ -95,9 +95,9 @@ class TestFormatApprovalButtons:
         result = format_approval_buttons()
         assert result["block_id"] == "approval_actions"
 
-    def test_contains_two_buttons(self):
+    def test_contains_three_buttons(self):
         result = format_approval_buttons()
-        assert len(result["elements"]) == 2
+        assert len(result["elements"]) == 3
 
     def test_yes_button_properties(self):
         result = format_approval_buttons()
@@ -114,6 +114,13 @@ class TestFormatApprovalButtons:
         assert no_button["text"]["text"] == "No"
         assert no_button["style"] == "danger"
         assert no_button["action_id"] == "reject_deck"
+
+    def test_regenerate_button_properties(self):
+        result = format_approval_buttons()
+        regen_button = result["elements"][2]
+        assert regen_button["type"] == "button"
+        assert regen_button["text"]["text"] == "Regenerate"
+        assert regen_button["action_id"] == "regenerate_analysis"
 
 
 class TestFormatCloudConsent:

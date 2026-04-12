@@ -16,10 +16,8 @@ def mock_config():
         slack_signing_secret="test-signing-secret",
         google_service_account_json="{}",
         google_drive_root_folder_id="folder-id",
-        ollama_base_url="http://localhost:11434/v1",
-        ollama_model="test-model",
+        anthropic_api_key="sk-ant-test-key",
         proposal_template_slide_id="slide-id",
-        ollama_num_ctx=32768,
     )
 
 
@@ -58,8 +56,10 @@ class TestCreateApp:
 
             create_app()
 
-            # Verify @app.message("Analyse") decorator was called
-            mock_app.message.assert_called_once_with("Analyse")
+            # Verify @app.message decorators were called for Analyse and Propose
+            mock_app.message.assert_any_call("Analyse")
+            mock_app.message.assert_any_call("Propose")
+            assert mock_app.message.call_count == 2
 
 
 class TestMain:
